@@ -34,7 +34,7 @@ for i in os.listdir(baseadd_load):
         g_l_max = max(g_l)
         rlist = [pa for ind, pa in enumerate(road2.svg_path_groups) if g_l[ind]<0.9*g_l_max]
         road2.rmv_path_groups(rlist)'''
-        road3 = road2.copy().zoom(0.9).simplify_heuristic(tolerance=0.05)
+        road3 = road2.copy().zoom(0.9).canonicalize().simplify_heuristic(tolerance=0.05)
         data_ = {
             "tensors": [SVG.to_tensor(road3, concat_groups=False)],
             "fillings": [road3.to_fillings()],
