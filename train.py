@@ -3,7 +3,6 @@ from l5kit.evaluation.metrics import neg_multi_log_likelihood
 from torch.utils.data import DataLoader, Subset
 from deepsvg.config import _Config
 import torch.nn as nn
-from src.lyft.data import build_rasterizer
 
 import argparse
 import importlib
@@ -68,32 +67,7 @@ def my_collate(batch):
 
 def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./logs", debug=False, resume=" "):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if args.data_type == "lightning":
-        data_cfg = load_config_data(args.config_data)
-        # set env variable for data
-        model_cfg.print_params()
-        dm = LocalDataManager(args.data_path)
-        # get config
-        rasterizer = build_rasterizer(data_cfg, dm)
-
-        train_zarr = ChunkedDataset(dm.require(data_cfg["train_dataloader"]["split"])).open()
-        val_zarr = ChunkedDataset(dm.require(data_cfg["val_dataloader"]["split"])).open()
-
-        train_dataset = AgentDataset(data_type = "lightning",model_args=model_cfg.model_args,
-                                   max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
-                                   data_cfg=data_cfg, zarr_dataset = train_zarr, rasterizer = rasterizer)
-        val_dataset = AgentDataset(data_type = "lightning",model_args=model_cfg.model_args,
-                                 max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
-                                 data_cfg=data_cfg, zarr_dataset = val_zarr, rasterizer = rasterizer)
-
-        if model_cfg.train_idxs is not None:
-            train_dataset = Subset(train_dataset, pd.read_csv(model_cfg.train_idxs)['idx'])
-        if model_cfg.val_idxs is not None:
-            val_dataset = Subset(val_dataset, pd.read_csv(model_cfg.val_idxs)['idx'])
-
-        criterion = neg_multi_log_likelihood
-        model = ModelTrajectory(model_cfg=model_cfg, data_config=data_cfg, modes=args.modes).to(device)
-    elif args.data_type == "argo":
+    if args.data_type == "argo":
         
         if args.use_map and args.use_social:
             baseline_key = "map_social"
