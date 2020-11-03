@@ -10,7 +10,6 @@ import importlib
 
 parser = argparse.ArgumentParser(description='Manage running job')
 parser.add_argument('--seed', type=int, default=313, help='random seed to use')
-parser.add_argument('--config', type=str, required=True, help='config yaml path')
 parser.add_argument("--config-model", type=str, required=True)
 parser.add_argument('--log-lr', type=boolify, default=True, help='learning rate log interval')
 parser.add_argument('--log-gpu-stats', type=boolify, default=False, help='whether to monitor gpu stats')
