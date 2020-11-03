@@ -1,4 +1,4 @@
-from src.lyft.utils import linear_path_to_tensor
+from raster.lightning.data.utils import linear_path_to_tensor
 
 import torch
 import functools
