@@ -80,7 +80,6 @@ parser.add_argument(
 
 
 parser = LyftTrainerModule.add_model_specific_args(parser)
-parser = LyftDataModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 
 if __name__ == '__main__':
