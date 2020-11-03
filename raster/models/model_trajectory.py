@@ -6,8 +6,8 @@ from deepsvg.model.model import SVGTransformer
 
 
 class ModelTrajectory(RasterModel):
-    def __init__(self,model_cfg, data_config: dict,future_len=None, in_channels=None, modes=1, pretrained=True):
-        super().__init__(config=data_config, modes=modes,future_len=future_len, in_channels=in_channels,)
+    def __init__(self,model_cfg, data_config: dict, modes=1, pretrained=True):
+        super().__init__(config=data_config, modes=modes)
         self.model_cfg = model_cfg
         self.model_cfg.model_cfg.dim_z = self.out_dim
         self.model_cfg.model_cfg.max_num_groups = self.model_cfg.max_num_groups

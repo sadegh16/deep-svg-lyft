@@ -1,27 +1,20 @@
-from src.lyft.data import agent_dataset
-from src.lyft.utils import apply_colors
 
-from deepsvg.config import _Config
+from .utils import apply_colors
+
 from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svglib.svg import SVG
 from deepsvg.svglib.geom import Point
 
-import math
 import torch
 import torch.utils.data
 import random
-from typing import List, Union
-import pandas as pd
-import os
-import pickle
-
 from src.argoverse.utils.svg_utils import BaseDataset
 
 
-import csv
 
-class SVGDataset(torch.utils.data.Dataset):
-    def __init__(self, data_type, model_args, max_num_groups, max_seq_len,
+
+class AgentDataset(torch.utils.data.Dataset):
+    def __init__(self, model_args, max_num_groups, max_seq_len,
                  data_cfg: dict=None, zarr_dataset=None, rasterizer=None,
                  perturbation=None, agents_mask=None,
                  min_frame_history=10, min_frame_future=1,
@@ -29,20 +22,8 @@ class SVGDataset(torch.utils.data.Dataset):
                  max_total_len=None, PAD_VAL=-1,csv_path=None):
 
         super().__init__()
-        if data_type == "lyft":
-            print(data_cfg)
-            map_type = data_cfg['raster_params']['map_type']
-            self.svg_args = data_cfg['raster_params'].get('svg_args', dict())
-            self.svg = map_type.startswith('svg_')
-            self.svg_cmds = self.svg_args.get('return_cmds', True)
-            print(self.svg,self.svg_cmds)
-            self.tensor = map_type.startswith('tensor_')
-            self.data = agent_dataset(
-                data_cfg, zarr_dataset, rasterizer, perturbation, agents_mask, min_frame_history, min_frame_future)
-        elif data_type == "argo":
-            self.svg = True
-            self.svg_cmds = True
-            self.data = BaseDataset(data_dict, args, mode)
+        self.svg_cmds = True
+        self.data = BaseDataset(data_dict, args, mode)
 
         self.MAX_NUM_GROUPS = max_num_groups
         self.MAX_SEQ_LEN = max_seq_len
@@ -108,7 +89,7 @@ class SVGDataset(torch.utils.data.Dataset):
     @staticmethod
     def preprocess(svg, augment=True, numericalize=True, mean=False):
         if augment:
-            svg = SVGDataset._augment(svg, mean=mean)
+            svg = AgentDataset._augment(svg, mean=mean)
         if numericalize:
             return svg.numericalize(256)
         return svg
@@ -116,23 +97,23 @@ class SVGDataset(torch.utils.data.Dataset):
     def get(self, idx=0, model_args=None, random_aug=True, id=None, svg: SVG = None):
         item = self.data[idx]
         if self.svg and self.svg_cmds:
-            tens = SVG.from_tensor(item['path']).simplify().split_paths().to_tensor(concat_groups=False)
+            tens = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
             # svg = apply_colors(tens, item['path_type'])
             del item['path']
-#             del item['path_type']
-            item['image'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
-            if item['image'] is None:
-                return
+            del item['path_type']
+            item['image'],item['valid'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
         return item
 
     def get_data(self, idx, t_sep, fillings, model_args=None, label=None):
         res = {}
+        valid = True
         # max_len_commands = 0
         # len_path = len(t_sep)
         if model_args is None:
             model_args = self.model_args
         if len(t_sep) > self.MAX_NUM_GROUPS:
-            return None
+            t_sep = t_sep[0:self.MAX_NUM_GROUPS]
+            valid = False
         pad_len = max(self.MAX_NUM_GROUPS - len(t_sep), 0)
 
         t_sep.extend([torch.empty(0, 14)] * pad_len)
@@ -142,10 +123,15 @@ class SVGDataset(torch.utils.data.Dataset):
         t_normal = []
         for t in t_sep:
             s = SVGTensor.from_data(t, PAD_VAL=self.PAD_VAL)
+            # print(s.commands.shape)
             if len(s.commands) > self.MAX_SEQ_LEN:
-                return None
+                print(len(s.args()),len(s.commands))
+                print(s.args())
+                s.commands = s.commands[0:self.MAX_SEQ_LEN]
+                valid = False
             t_normal.append(s.add_eos().add_sos().pad(
                 seq_len=self.MAX_SEQ_LEN + 2))
+            print(len(s.args()),len(s.commands))
         # line = {"idx" : idx, "len_path" : len_path, "max_len_commands" : max_len_commands}
         # self.writer.writerow(line)
         # if max_len_commands > self.MAX_SEQ_LEN:
@@ -170,12 +156,12 @@ class SVGDataset(torch.utils.data.Dataset):
             if arg_ == "args_rel":
                 res[arg] = torch.stack([t.get_relative_args() for t in t_list])
             if arg_ == "args":
-                res[arg] = torch.stack([t.args() for t in t_list])
+                res[arg] = torch.stack([t.args()[0:self.MAX_SEQ_LEN+2] for t in t_list])
 
         if "filling" in model_args:
             res["filling"] = torch.stack([torch.tensor(t.filling) for t in t_sep]).unsqueeze(-1)
 
         if "label" in model_args:
             res["label"] = label
-        return res
+        return res,valid
 

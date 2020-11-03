@@ -1,15 +1,14 @@
+from l5kit.data import ChunkedDataset, LocalDataManager
+from l5kit.evaluation.metrics import neg_multi_log_likelihood
 from torch.utils.data import DataLoader, Subset
 from deepsvg.config import _Config
 import torch.nn as nn
 from src.lyft.data import build_rasterizer
-from l5kit.data import LocalDataManager, ChunkedDataset
+
 import argparse
 import importlib
 from l5kit.configs import load_config_data
-from src.model_and_dataset.svg_dataset import SVGDataset
 
-from src.model_and_dataset.models.model_trajectory import ModelTrajectory
-from src.model_and_dataset.utils import neg_multi_log_likelihood
 
 from deepsvg.utils import Stats, TrainVars, Timer
 import torch
@@ -39,6 +38,8 @@ import pandas as pd
 # from logger import Logger
 import src.argoverse.utils.baseline_config as config
 import src.argoverse.utils.baseline_utils as baseline_utils
+from raster.lightning.data.data import AgentDataset
+from raster.models.model_trajectory import ModelTrajectory
 from src.argoverse.utils.map_features_utils import MapFeaturesUtils
 
 from src.argoverse.utils.raster_utils import RasterDataset
@@ -67,7 +68,7 @@ def my_collate(batch):
 
 def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./logs", debug=False, resume=" "):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if args.data_type == "lyft":
+    if args.data_type == "lightning":
         data_cfg = load_config_data(args.config_data)
         # set env variable for data
         model_cfg.print_params()
@@ -78,10 +79,10 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
         train_zarr = ChunkedDataset(dm.require(data_cfg["train_dataloader"]["split"])).open()
         val_zarr = ChunkedDataset(dm.require(data_cfg["val_dataloader"]["split"])).open()
 
-        train_dataset = SVGDataset(data_type = "lyft",model_args=model_cfg.model_args,
+        train_dataset = AgentDataset(data_type = "lightning",model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
                                    data_cfg=data_cfg, zarr_dataset = train_zarr, rasterizer = rasterizer)
-        val_dataset = SVGDataset(data_type = "lyft",model_args=model_cfg.model_args,
+        val_dataset = AgentDataset(data_type = "lightning",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
                                  data_cfg=data_cfg, zarr_dataset = val_zarr, rasterizer = rasterizer)
 
@@ -108,11 +109,11 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 
 
         # # Get PyTorch Dataset
-        train_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
+        train_dataset = AgentDataset(data_type = "argo",model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
                                    data_dict=data_dict, args=args, mode="train")
 
-        val_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
+        val_dataset = AgentDataset(data_type = "argo",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
                                  data_dict=data_dict, args=args, mode="val")
         criterion= nn.MSELoss()
@@ -271,7 +272,7 @@ if __name__ == "__main__":
     parser.add_argument("--resume", type=bool, default=False)
     parser.add_argument("--data-type", type=str, default=None)
     parser.add_argument("--modes", type=int, default=3)
-    #lyft
+    #lightning
     parser.add_argument("--config-data", type=str, required=False)
     parser.add_argument("--val-idxs", type=str, default=None)
     parser.add_argument("--train-idxs", type=str, default=None)
