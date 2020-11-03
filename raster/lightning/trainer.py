@@ -15,7 +15,6 @@ from pytorch_lightning.utilities.distributed import rank_zero_only
 class LyftTrainerModule(pl.LightningModule, ABC):
     def __init__(
             self,
-            config: dict,
             model_config,
             model: str = 'Resnet',
             model_dict: dict = None,
