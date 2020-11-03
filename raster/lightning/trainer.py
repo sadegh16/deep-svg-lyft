@@ -9,7 +9,6 @@ from raster.utils import KeyValue, boolify
 from argparse import ArgumentParser
 from pytorch_lightning.utilities.distributed import rank_zero_only
 
-
 from ..models.model_trajectory import ModelTrajectory
 
 
@@ -46,13 +45,13 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         super().__init__()
         self.save_hyperparameters()
         print(self.hparams)
-        self.model = ModelTrajectory(model_cfg=self.hparams.model_config, data_config= self.hparams.config, modes=self.hparams.modes, future_len=30, in_channels=3)
+        self.model = ModelTrajectory(model_cfg=self.hparams.model_config, data_config=self.hparams.config,
+                                     modes=self.hparams.modes, future_len=30, in_channels=3)
         # optimization & scheduling
         self.lr = self.hparams.lr
         self.track_grad = self.hparams.track_grad
         self.val_hparams = 0.
-        self.criterion= torch.nn.MSELoss()
-
+        self.criterion = torch.nn.MSELoss()
 
     @rank_zero_only  # todo check
     def init_hparam_logs(self):
@@ -70,12 +69,13 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         torch.set_grad_enabled(grad_enabled)
         res = dict()
         ##added
-        model_args = [inputs[arg]for arg in self.hparams.model_config.model_args]
+        model_args = [inputs[arg] for arg in self.hparams.model_config.model_args]
         entery = [*model_args, {}, True]
         pred = self.model(entery)
-        loss = self.criterion(targets, pred,)
+        loss = self.criterion(targets, pred, )
         if return_trajectory:
             res['loss'] = loss
+            res['pred'] = pred
         else:
             res['loss'] = loss.mean()
 
@@ -115,6 +115,8 @@ class LyftTrainerModule(pl.LightningModule, ABC):
     def validation_step(self, batch, batch_idx):
         return self.step(batch, batch_idx, name='val')
 
+    def test_step(self, batch, batch_idx):
+        return self.step(batch, batch_idx, name='test')
 
     def configure_optimizers(self):
         opt_class, opt_dict = torch.optim.Adam, {'lr': self.lr}

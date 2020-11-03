@@ -1,4 +1,3 @@
-
 from .utils import apply_colors
 
 from deepsvg.difflib.tensor import SVGTensor
@@ -11,15 +10,13 @@ import random
 from src.argoverse.utils.svg_utils import BaseDataset
 
 
-
-
 class AgentDataset(torch.utils.data.Dataset):
     def __init__(self, model_args, max_num_groups, max_seq_len,
-                 data_cfg: dict=None, zarr_dataset=None, rasterizer=None,
+                 data_cfg: dict = None, zarr_dataset=None, rasterizer=None,
                  perturbation=None, agents_mask=None,
                  min_frame_history=10, min_frame_future=1,
-                 data_dict = None, args=None, mode=None,
-                 max_total_len=None, PAD_VAL=-1,csv_path=None):
+                 data_dict=None, args=None, mode=None,
+                 max_total_len=None, PAD_VAL=-1, csv_path=None):
 
         super().__init__()
         self.svg_cmds = True
@@ -32,7 +29,6 @@ class AgentDataset(torch.utils.data.Dataset):
         if max_total_len is None:
             self.MAX_TOTAL_LEN = max_num_groups * max_seq_len
 
-
         self.model_args = model_args
 
         self.PAD_VAL = PAD_VAL
@@ -40,9 +36,6 @@ class AgentDataset(torch.utils.data.Dataset):
         # fieldnames = ["idx", "len_path", "max_len_commands"]
         # self.writer = csv.DictWriter(open(csv_path+"/full_result.csv", "w"), fieldnames)
         # self.writer.writeheader()
-
-
-
 
     @staticmethod
     def _uni_to_label(uni):
@@ -101,7 +94,7 @@ class AgentDataset(torch.utils.data.Dataset):
             # svg = apply_colors(tens, item['path_type'])
             del item['path']
             del item['path_type']
-            item['image'],item['valid'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
+            item['image'], item['valid'] = self.get_data(idx, tens, None, model_args=model_args, label=None)
         return item
 
     def get_data(self, idx, t_sep, fillings, model_args=None, label=None):
@@ -125,13 +118,13 @@ class AgentDataset(torch.utils.data.Dataset):
             s = SVGTensor.from_data(t, PAD_VAL=self.PAD_VAL)
             # print(s.commands.shape)
             if len(s.commands) > self.MAX_SEQ_LEN:
-                print(len(s.args()),len(s.commands))
+                print(len(s.args()), len(s.commands))
                 print(s.args())
                 s.commands = s.commands[0:self.MAX_SEQ_LEN]
                 valid = False
             t_normal.append(s.add_eos().add_sos().pad(
                 seq_len=self.MAX_SEQ_LEN + 2))
-            print(len(s.args()),len(s.commands))
+            print(len(s.args()), len(s.commands))
         # line = {"idx" : idx, "len_path" : len_path, "max_len_commands" : max_len_commands}
         # self.writer.writerow(line)
         # if max_len_commands > self.MAX_SEQ_LEN:
@@ -156,12 +149,11 @@ class AgentDataset(torch.utils.data.Dataset):
             if arg_ == "args_rel":
                 res[arg] = torch.stack([t.get_relative_args() for t in t_list])
             if arg_ == "args":
-                res[arg] = torch.stack([t.args()[0:self.MAX_SEQ_LEN+2] for t in t_list])
+                res[arg] = torch.stack([t.args()[0:self.MAX_SEQ_LEN + 2] for t in t_list])
 
         if "filling" in model_args:
             res["filling"] = torch.stack([torch.tensor(t.filling) for t in t_sep]).unsqueeze(-1)
 
         if "label" in model_args:
             res["label"] = label
-        return res,valid
-
+        return res, valid
