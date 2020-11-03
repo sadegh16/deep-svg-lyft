@@ -101,7 +101,7 @@ if __name__ == '__main__':
     model_name, experiment_name = args.config_model.split(".")[-2:]
     args_dict = vars(args)
     args_dict['model_config'] = model_config
-    training_procedure = LyftTrainerModule(**args_dict)
+    training_procedure = LyftTrainerModule(args_dict ,model_config)
     if args.transfer is not None:
         training_procedure.load_state_dict(torch.load(args.transfer)['state_dict'])
         print(args.transfer, 'loaded as initial weights')
