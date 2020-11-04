@@ -11,7 +11,6 @@ from argparse import ArgumentParser
 from pytorch_lightning.utilities.distributed import rank_zero_only
 
 
-
 class LyftTrainerModule(pl.LightningModule, ABC):
     def __init__(
             self,
@@ -44,7 +43,8 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         super().__init__()
         self.save_hyperparameters()
         print(self.hparams)
-        self.model = ModelTrajectory(model_cfg=self.hparams.model_config, modes=self.hparams.modes, future_len=30, in_channels=3)
+        self.model = ModelTrajectory(model_cfg=self.hparams.model_config, modes=self.hparams.modes, future_len=30,
+                                     in_channels=3)
         # optimization & scheduling
         self.lr = self.hparams.lr
         self.track_grad = self.hparams.track_grad
@@ -69,10 +69,10 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         ##added
         model_args = [inputs[arg] for arg in self.hparams.model_config.model_args]
         entery = [*model_args, {}, True]
-        pred,_ = self.model(entery)
+        pred, _ = self.model(entery)
         #         print(targets)
         #         print(pred)
-        loss = self.criterion(targets, pred.reshape(targets.shape),)
+        loss = self.criterion(targets, pred.reshape(targets.shape), )
         if return_trajectory:
             res['loss'] = loss
             res['pred'] = pred
@@ -93,7 +93,6 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         return
 
     def step(self, batch, batch_idx, optimizer_idx=None, name='train'):
-        print(batch['valid'])
         is_val = name == 'val'
         is_test = name == 'test'
         if self.global_step == 0:
@@ -175,4 +174,3 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         parser.add_argument('--track-grad', type=boolify, default=False,
                             help='whether to log grad norms')
         return parser
-

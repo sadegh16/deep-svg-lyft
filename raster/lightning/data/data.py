@@ -120,7 +120,6 @@ class AgentDataset(torch.utils.data.Dataset):
                 valid = False
             t_normal.append(s.add_eos().add_sos().pad(
                 seq_len=self.MAX_SEQ_LEN + 2))
-            # print(len(s.args()), len(s.commands))
         # line = {"idx" : idx, "len_path" : len_path, "max_len_commands" : max_len_commands}
         # self.writer.writerow(line)
         # if max_len_commands > self.MAX_SEQ_LEN:
@@ -153,4 +152,3 @@ class AgentDataset(torch.utils.data.Dataset):
         if "label" in model_args:
             res["label"] = label
         return res, valid
-

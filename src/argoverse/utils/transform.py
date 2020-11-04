@@ -3,10 +3,10 @@ from typing import Optional, Sequence, Tuple, Union, cast
 import numpy as np
 import pymap3d as pm
 import transforms3d
+
 # sub-pixel drawing precision constants
 CV2_SHIFT = 8  # how many bits to shift in drawing
 CV2_SHIFT_VALUE = 2 ** CV2_SHIFT
-
 
 
 def crop_tensor(vector, raster_size):
@@ -15,8 +15,6 @@ def crop_tensor(vector, raster_size):
     vector[:, 0] = (vector[:, 0] / raster_size[0]) * 24
     vector[:, 1] = (vector[:, 1] / raster_size[1]) * 24
     return vector
-
-
 
 
 def cv2_subpixel(coords: np.ndarray) -> np.ndarray:
@@ -33,6 +31,7 @@ def cv2_subpixel(coords: np.ndarray) -> np.ndarray:
     coords = coords * CV2_SHIFT_VALUE
     coords = coords.astype(np.int)
     return coords
+
 
 def rotation33_as_yaw(rotation: np.ndarray) -> float:
     """Compute the yaw component of given 3x3 rotation matrix.
@@ -63,11 +62,11 @@ def yaw_as_rotation33(yaw: float) -> np.ndarray:
 
 
 def world_to_image_pixels_matrix(
-    image_shape: Tuple[int, int],
-    pixel_size_m: np.ndarray,
-    ego_translation_m: np.ndarray,
-    ego_yaw_rad: Optional[float] = None,
-    ego_center_in_image_ratio: Optional[np.ndarray] = None,
+        image_shape: Tuple[int, int],
+        pixel_size_m: np.ndarray,
+        ego_translation_m: np.ndarray,
+        ego_yaw_rad: Optional[float] = None,
+        ego_center_in_image_ratio: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Constructs a transformation matrix from world coordinates to image pixels.

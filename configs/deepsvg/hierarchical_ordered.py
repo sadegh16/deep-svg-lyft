@@ -21,9 +21,7 @@ class Config(Config):
 
         self.max_num_groups = 10
         self.max_seq_len = 120
-        self.max_total_len = 1500
-
-
+        self.max_total_len = 1200
 
         # Dataloader
         self.loader_num_workers = 20
@@ -33,8 +31,8 @@ class Config(Config):
 
         # Optimization
         self.learning_rate = 1e-4
-        self.train_batch_size = 16
-        self.val_batch_size = 8
+        self.train_batch_size = 20
+        self.val_batch_size = 20
 
         self.val_every = 2000
         self.log_every = 100

@@ -240,7 +240,6 @@ def get_xy_from_nt_seq(nt_seq: np.ndarray,
         curr_cl = centerlines[i]
         line_string = LineString(curr_cl)
         for time in range(seq_len):
-
             # Project nt to xy
             offset_from_cl = nt_seq[i][time][0]
             dist_along_cl = nt_seq[i][time][1]
@@ -308,9 +307,9 @@ def get_xy_from_nt(n: float, t: float,
         ls_slope = (pt2[1] - pt1[1]) / (pt2[0] - pt1[0])
         m = -1 / ls_slope
 
-        x1_1 = x0 + n / math.sqrt(1 + m**2)
+        x1_1 = x0 + n / math.sqrt(1 + m ** 2)
         y1_1 = y0 + m * (x1_1 - x0)
-        x1_2 = x0 - n / math.sqrt(1 + m**2)
+        x1_2 = x0 - n / math.sqrt(1 + m ** 2)
         y1_2 = y0 + m * (x1_2 - x0)
 
     # Rings formed by pt1, pt2 and coordinates computed above
@@ -623,73 +622,6 @@ def get_abs_traj(
         output[:, :, :2] = normalized_to_map_coordinates(
             output[:, :, :2], translation, rotation)
     return input_, output
-
-
-def get_model(
-        regressor: Any,
-        train_input: np.ndarray,
-        train_output: np.ndarray,
-        args: Any,
-        pred_horizon: int,
-) -> Any:
-    """Get the trained model_and_dataset after running grid search or load a saved one.
-
-    Args:
-        regressor: Nearest Neighbor regressor class instance 
-        train_input: Input to the model_and_dataset
-        train_output: Ground truth for the model_and_dataset
-        args: Arguments passed to the baseline
-        pred_horizon: Prediction Horizon
-
-    Returns:
-        grid_search: sklearn GridSearchCV object
-
-    """
-    # Load model_and_dataset
-    if args.test:
-
-        # Load a trained model_and_dataset
-        with open(args.model_path, "rb") as f:
-            grid_search = pkl.load(f)
-        print(f"## Loaded {args.model_path} ....")
-
-    else:
-
-        train_num_tracks = train_input.shape[0]
-
-        # Flatten to (num_tracks x feature_size)
-        train_output_curr = train_output[:, :pred_horizon, :].reshape(
-            (train_num_tracks, pred_horizon * 2), order="F")
-
-        # Run grid search for hyper parameter tuning
-        grid_search = regressor.run_grid_search(train_input, train_output_curr)
-        os.makedirs(os.path.dirname(args.model_path), exist_ok=True)
-        with open(args.model_path, "wb") as f:
-            pkl.dump(grid_search, f)
-        print(f"Trained model_and_dataset saved at... {args.model_path}")
-
-    return grid_search
-
-
-def merge_saved_traj(batched_dir: str, merged_file_path: str):
-    """Load saved trajectories, merge them, save the merged one, delete the individual ones.
-
-    Args:
-        batched_dir: Directory where forecasted trajectories for all the batches are saved
-        merged_file_path: Path to the pickle file where merged file is to be saved.
-    Note: batched_dir should only contain the files that are to be merged
-
-    """
-    file_names = os.listdir(batched_dir)
-    forecasted_trajectories = {}
-    for fn in file_names:
-        file_path = f"{batched_dir}/{fn}"
-        with open(file_path, "rb") as f:
-            traj = pkl.load(f)
-        forecasted_trajectories = {**forecasted_trajectories, **traj}
-        os.remove(file_path)
-    with open(merged_file_path, "wb") as f:
-        pkl.dump(forecasted_trajectories, f)
 
 
 def get_test_data_dict_subset(
