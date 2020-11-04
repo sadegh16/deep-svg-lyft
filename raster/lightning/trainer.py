@@ -69,8 +69,10 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         ##added
         model_args = [inputs[arg] for arg in self.hparams.model_config.model_args]
         entery = [*model_args, {}, True]
-        pred = self.model(entery)
-        loss = self.criterion(targets, pred, )
+        pred,_ = self.model(entery)
+        #         print(targets)
+        #         print(pred)
+        loss = self.criterion(targets, pred.reshape(targets.shape),)
         if return_trajectory:
             res['loss'] = loss
             res['pred'] = pred
@@ -173,3 +175,4 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         parser.add_argument('--track-grad', type=boolify, default=False,
                             help='whether to log grad norms')
         return parser
+

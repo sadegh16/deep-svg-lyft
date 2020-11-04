@@ -82,6 +82,7 @@ parser = LyftTrainerModule.add_model_specific_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 
 if __name__ == '__main__':
+    print("start")
     args = parser.parse_args()
     # initializing various parts
     pl.seed_everything(args.seed)
@@ -102,8 +103,11 @@ if __name__ == '__main__':
     args_dict = vars(args)
     args_dict['model_config'] = model_config
     training_procedure = LyftTrainerModule(**args_dict)
+    print("LyftTrainerModule")
     if args.transfer is not None:
         training_procedure.load_state_dict(torch.load(args.transfer)['state_dict'])
         print(args.transfer, 'loaded as initial weights')
-    training_procedure.datamodule = LyftDataModule(args_dict ,model_config)
+    training_procedure.datamodule = LyftDataModule(args ,model_config)
+    print("LyftDataModule")
     trainer.fit(training_procedure)
+

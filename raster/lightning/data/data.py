@@ -89,12 +89,10 @@ class AgentDataset(torch.utils.data.Dataset):
 
     def get(self, idx=0, model_args=None, random_aug=True, id=None, svg: SVG = None):
         item = self.data[idx]
-        if self.svg and self.svg_cmds:
-            tens = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
-            # svg = apply_colors(tens, item['path_type'])
-            del item['path']
-            del item['path_type']
-            item['image'], item['valid'] = self.get_data(idx, tens, None, model_args=model_args, label=None)
+        tens = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
+        # svg = apply_colors(tens, item['path_type'])
+        del item['path']
+        item['image'], item['valid'] = self.get_data(idx, tens, None, model_args=model_args, label=None)
         return item
 
     def get_data(self, idx, t_sep, fillings, model_args=None, label=None):
@@ -118,8 +116,6 @@ class AgentDataset(torch.utils.data.Dataset):
             s = SVGTensor.from_data(t, PAD_VAL=self.PAD_VAL)
             # print(s.commands.shape)
             if len(s.commands) > self.MAX_SEQ_LEN:
-                print(len(s.args()), len(s.commands))
-                print(s.args())
                 s.commands = s.commands[0:self.MAX_SEQ_LEN]
                 valid = False
             t_normal.append(s.add_eos().add_sos().pad(
@@ -157,3 +153,4 @@ class AgentDataset(torch.utils.data.Dataset):
         if "label" in model_args:
             res["label"] = label
         return res, valid
+

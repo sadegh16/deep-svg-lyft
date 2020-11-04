@@ -45,7 +45,7 @@ class LyftDataModule(LightningDataModule):
                                          max_num_groups=self.model_config.max_num_groups,
                                          max_seq_len=self.model_config.max_seq_len,
                                          data_dict=self.data_dict, args=self.args, mode="val")
-        if stage == 'test' or stage is None:
+        elif stage == 'test' or stage is None:
             self.test_data = AgentDataset(model_args=self.model_config.model_args,
                                           max_num_groups=self.model_config.max_num_groups,
                                           max_seq_len=self.model_config.max_seq_len,
@@ -60,5 +60,6 @@ class LyftDataModule(LightningDataModule):
                           num_workers=self.model_config.loader_num_workers)
 
     def test_dataloader(self, batch_size=None, num_workers=None, shuffle=None):
-        return DataLoader(self.test_data, batch_size=self.model_config.val_batch_size, shuffle=True,
+        return DataLoader(self.test_data, batch_size=self.model_config.val_batch_size, shuffle=False,
                           num_workers=self.model_config.loader_num_workers)
+
