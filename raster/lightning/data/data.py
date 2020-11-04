@@ -92,6 +92,7 @@ class AgentDataset(torch.utils.data.Dataset):
         tens = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
         # svg = apply_colors(tens, item['path_type'])
         del item['path']
+        # del item['path_type']
         item['image'], item['valid'] = self.get_data(idx, tens, None, model_args=model_args, label=None)
         return item
 

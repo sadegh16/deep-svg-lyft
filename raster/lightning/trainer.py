@@ -84,7 +84,7 @@ class LyftTrainerModule(pl.LightningModule, ABC):
         return res['loss']
 
     def on_train_batch_start(self, batch, batch_idx: int, dataloader_idx: int):
-        print(batch['valid'])
+        # print(batch['valid'])
         batch['image']['commands'] = batch['image']['commands'][batch['valid']]
         if len(batch['image']['commands']) == 0:
             return -1
