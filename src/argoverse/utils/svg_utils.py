@@ -106,7 +106,7 @@ class BaseDataset(torch.utils.data.Dataset):
         traj = transform_points(traj-helper[0][19], yaw_as_rotation33(math.pi*helper[5]/180))
         ############################## find agents history
         agents_history= self.get_agents(idx,world_to_image_space,helper[0][19],)
-#         print("agents_history len ",type(agents_history[0]))
+#         print("agents_history len ",len(agents_history[0]))
         ##############################
         
         ############################## history positions 
@@ -116,13 +116,13 @@ class BaseDataset(torch.utils.data.Dataset):
 #         print(len(history_xy))
         ##############################
 #         print(len(agents_history))
-        path_type=[0]*len(cnt_lines_norm)+[1]
+        path_type=[0]*len(cnt_lines_norm)+[1]+[2]*len(agents_history)
 #         print(len(cnt_lines_norm))
-        path_stacked_up=cnt_lines_norm+[history_xy]
+        path_stacked_up=cnt_lines_norm+[history_xy]+agents_history
 #         print(len(path_stacked_up))
         
         res = torch.cat([linear_path_to_tensor(path, -1) for path in path_stacked_up], 0)
-#         print(len(res))
+#         print(res.shape)
         
 
 #         res = torch.cat([linear_path_to_tensor(path, -1) for path in cnt_lines_norm], 0)
@@ -210,6 +210,7 @@ class BaseDataset(torch.utils.data.Dataset):
             
 #             print(group_data[["X","Y"]].values.shape).
             cor_xy = group_data[["X","Y"]].to_numpy()
+            cor_xy=cor_xy[:self.args.obs_len]
             if np.linalg.norm(centroid-cor_xy[-1])>40:
                 continue
             cor_xy = transform_points(cor_xy, world_to_image_space)
