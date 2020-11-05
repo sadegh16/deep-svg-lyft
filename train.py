@@ -40,6 +40,7 @@ import pandas as pd
 import src.argoverse.utils.baseline_config as config
 import src.argoverse.utils.baseline_utils as baseline_utils
 from src.argoverse.utils.map_features_utils import MapFeaturesUtils
+from src.argoverse.utils.evaluation import get_ade
 
 from src.argoverse.utils.raster_utils import RasterDataset
 
@@ -66,7 +67,7 @@ def my_collate(batch):
 
 
 def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./logs", debug=False, resume=" "):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.data_type == "lyft":
         data_cfg = load_config_data(args.config_data)
         # set env variable for data
@@ -115,7 +116,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
         val_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
                                  data_dict=data_dict, args=args, mode="val")
-        criterion= nn.MSELoss()
+        criterion= get_ade
         model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
 
     train_dataloader = DataLoader(train_dataset, batch_size=model_cfg.train_batch_size, shuffle=True,
@@ -137,7 +138,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
     current_time = datetime.now().strftime("%b%d_%H-%M-%S")
     experiment_identifier = f"{model_name}_{experiment_name}_{current_time}"
 
-    summary_writer = SummaryWriter(os.path.join(log_dir, "tensorboard", "debug" if debug else "full", experiment_identifier))
+    summary_writer = SummaryWriter(os.path.join(log_dir, experiment_identifier))
     checkpoint_dir = os.path.join(log_dir, "models", model_name, experiment_name)
     print(checkpoint_dir)
 
@@ -150,12 +151,12 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 
     loss_fns = [l.to(device) for l in model_cfg.make_losses()]
 
-    if not resume == " ":
-        ckpt_exists = utils.load_ckpt_list(checkpoint_dir, model, None, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
+#     if not resume == " ":
+#         ckpt_exists = utils.load_ckpt_list(checkpoint_dir, model, None, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
 
-    if not resume == " " and ckpt_exists:
-        print(f"Resuming model at epoch {stats.epoch+1}")
-        stats.num_steps = model_cfg.num_epochs * len(train_dataloader)
+#     if not resume == " " and ckpt_exists:
+#         print(f"Resuming model at epoch {stats.epoch+1}")
+#         stats.num_steps = model_cfg.num_epochs * len(train_dataloader)
 #     if True:
 #         # Run a single forward pass on the single-device model_and_dataset for initialization of some modules
 #         single_foward_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True,
@@ -165,7 +166,8 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 #             model_args, params_dict = [data['image'][arg].to(device) for arg in model_cfg.model_args], model_cfg.get_params(0, 0)
 #             entery = [*model_args,{},True]
 #             out = model(entery)
-
+    if torch.cuda.device_count() > 0:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
     model = nn.DataParallel(model)
 
     epoch_range = utils.infinite_range(stats.epoch) if model_cfg.num_epochs is None else range(stats.epoch, cfg.num_epochs)
@@ -210,7 +212,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
                 })
 
             if step % model_cfg.log_every == 0 and step!=0:
-
+                print("log train")
                 stats.update("train", step, epoch, {
                     **weights_dict,
                     "time": timer.get_elapsed_time()
@@ -220,13 +222,14 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
                 summary_writer.flush()
 
             if step % model_cfg.val_every == 0 :
+                print("log val")
                 timer.reset()
-                torch.save(model.state_dict(), "svg-S-"+str(step))
+                torch.save(model.state_dict(),log_dir+"/"+experiment_identifier+"/"+model_name+"-"+str(step))
                 validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,step)
             
-            if step % model_cfg.ckpt_every == 0:
-                utils.save_ckpt_list(checkpoint_dir, model, model_cfg, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
-                print("save checkpoint")
+#             if step % model_cfg.ckpt_every == 0:
+#                 utils.save_ckpt_list(checkpoint_dir, model, model_cfg, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
+#                 print("save checkpoint")
 
 
 
@@ -346,6 +349,6 @@ if __name__ == "__main__":
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
     train(model_cfg=cfg, args=args,
-          model_name="svg-S-with-chkpnt", experiment_name=experiment_name,
+          model_name="svg-HS-2gpu-32-bs48-tt1650", experiment_name=experiment_name,
           log_dir=args.log_dir, debug=args.debug, resume=args.resume)
 
