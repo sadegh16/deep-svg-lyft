@@ -28,7 +28,7 @@ import math
 
 
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,root_dir="/work/vita/sadegh/argo/argoverse-api/train/data/"):
+    def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,):
         """Initialize the Dataset.
 
         Args:
@@ -50,12 +50,14 @@ class BaseDataset(torch.utils.data.Dataset):
         # Get helpers
         self.helpers = self.get_helpers()
         self.helpers = list(zip(*self.helpers))
-        self.root_dir=root_dir
+        
+        middle_dir=mode if mode!="test" else  "test_obs"
+        self.root_dir="/work/vita/sadegh/argo/argoverse-api/"+middle_dir+"/data"
         
         from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 
         ##set root_dir to the correct path to your dataset folder
-        self.afl = ArgoverseForecastingLoader(root_dir)
+        self.afl = ArgoverseForecastingLoader(self.root_dir)
         
         from argoverse.map_representation.map_api import ArgoverseMap
 
@@ -103,7 +105,8 @@ class BaseDataset(torch.utils.data.Dataset):
         traj= helper[0] if self.mode != "test"  else  helper[0][:20]
         traj = transform_points(traj-helper[0][19], yaw_as_rotation33(math.pi*helper[5]/180))
         ############################## find agents history
-#         agents_history= self.get_agents(idx,world_to_image_space,)
+        agents_history= self.get_agents(idx,world_to_image_space,helper[0][19],)
+#         print("agents_history len ",type(agents_history[0]))
         ##############################
         
         ############################## history positions 
@@ -186,31 +189,39 @@ class BaseDataset(torch.utils.data.Dataset):
 
         return tuple(helpers)
 
-    def get_agents(self,index,world_to_image_space,) :
+    def get_agents(self,index,world_to_image_space,centroid) :
         """Get agents
 
         """
         helper_df = self.data_dict[f"{self.mode}_helpers"]
         seq_id=helper_df.iloc[index,0]
         seq_path = f"{self.root_dir}/{seq_id}.csv"
-        print(seq_path)
+#         print(seq_path)
         df=self.afl.get(seq_path).seq_df
         frames = df.groupby("TRACK_ID")
 
         res=[]
+#         print(len(frames))
         # Plot all the tracks up till current frame
+        num_selected=0
         for group_name, group_data in frames:
             object_type = group_data["OBJECT_TYPE"].values[0]
             
             
 #             print(group_data[["X","Y"]].values.shape).
             cor_xy = group_data[["X","Y"]].to_numpy()
-            
+            if np.linalg.norm(centroid-cor_xy[-1])>40:
+                continue
             cor_xy = transform_points(cor_xy, world_to_image_space)
-
+#             print(cor_xy.shape)
             cropped_vector=crop_tensor(cor_xy, (224,224))
+#             print(cropped_vector.shape)
+            
             if len(cropped_vector)>1:
                 res.append(cropped_vector)
-
+                num_selected+=1 
+            if num_selected>=15:
+                break
+#         print(num_selected)
         return res
 
