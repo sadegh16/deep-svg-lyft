@@ -23,7 +23,7 @@ from .map_features_utils import MapFeaturesUtils
 from .transform import *
 import csv
 
-
+import math
 
 
 
@@ -94,25 +94,31 @@ class BaseDataset(torch.utils.data.Dataset):
                         yaw_deg=helper[5],
                         city_name=helper[1][0],avm=self.avm,
             viz=True,
-            seq_len = 80,
+            seq_len = 50,
             max_candidates=10,
             )
         #############################
+#         print(helper)
         
-                
+        traj= helper[0] if self.mode != "test"  else  helper[0][:20]
+        traj = transform_points(traj-helper[0][19], yaw_as_rotation33(math.pi*helper[5]/180))
         ############################## find agents history
 #         agents_history= self.get_agents(idx,world_to_image_space,)
         ##############################
         
         ############################## history positions 
-#         ego_world_history=helper[0][:20]
-#         history_xy = transform_points(ego_world_history, world_to_image_space)
-#         history_xy=crop_tensor(history_xy, (224,224))
+        ego_world_history=helper[0][:20]
+        history_xy = transform_points(ego_world_history, world_to_image_space)
+        history_xy=crop_tensor(history_xy, (224,224))
+#         print(len(history_xy))
         ##############################
 #         print(len(agents_history))
-#         path_type=[0]*len(cnt_lines_norm)+[1]*len(agents_history)+[2]
-#         path_stacked_up=cnt_lines_norm+agents_history+[history_xy]
-        res = torch.cat([linear_path_to_tensor(path, -1) for path in cnt_lines_norm], 0)
+        path_type=[0]*len(cnt_lines_norm)+[1]
+#         print(len(cnt_lines_norm))
+        path_stacked_up=cnt_lines_norm+[history_xy]
+#         print(len(path_stacked_up))
+        
+        res = torch.cat([linear_path_to_tensor(path, -1) for path in path_stacked_up], 0)
 #         print(len(res))
         
 
@@ -122,14 +128,16 @@ class BaseDataset(torch.utils.data.Dataset):
 
 #         history_positions= torch.FloatTensor(transform_points(helper[0], world_to_image_space)),
 #         target_positions= torch.FloatTensor(self.input_data[idx]),
-        return {"history_positions": torch.FloatTensor(self.input_data[idx]),
-                "target_positions": torch.empty(1) if self.mode == "test" else torch.FloatTensor(self.output_data[idx]),
+        return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
+                "target_positions": torch.empty(1) if self.mode == "test" else torch.FloatTensor(traj[self.args.obs_len:]),
                 "path":res,
-#                 "path_type":path_type,
-                "image":img.transpose(2, 0, 1),
-                "centroid":helper[0][0],
-                "yaw_deg":helper[5],
+                "path_type":path_type,
+#                 "image":img.transpose(2, 0, 1),
+                "base_image":img.transpose(2, 0, 1),
                 
+                "centroid":helper[0][19],
+                "yaw_deg":helper[5],
+                "seq_id":helper[8],
 #                 "cnt_lines_norm":cnt_lines_norm,
                 "world_to_image_space":world_to_image_space,
                }
