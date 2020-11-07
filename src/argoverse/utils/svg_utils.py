@@ -22,13 +22,16 @@ from .baseline_config import *
 from .map_features_utils import MapFeaturesUtils
 from .transform import *
 import csv
+from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
+from argoverse.map_representation.map_api import ArgoverseMap
 
 import math
 
 
 
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,):
+    def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,base_dir="/work/vita/sadegh/argo/argoverse-api/",
+                use_history=True, use_agents=False ,use_scene=True):
         """Initialize the Dataset.
 
         Args:
@@ -40,7 +43,9 @@ class BaseDataset(torch.utils.data.Dataset):
         self.data_dict = data_dict
         self.args = args
         self.mode = mode
-
+        self.use_history=use_history
+        self.use_agents=use_agents
+        self.use_scene=use_scene
         # Get input
         self.input_data = data_dict["{}_input".format(mode)]
         if mode != "test":
@@ -52,14 +57,12 @@ class BaseDataset(torch.utils.data.Dataset):
         self.helpers = list(zip(*self.helpers))
         
         middle_dir=mode if mode!="test" else  "test_obs"
-        self.root_dir="/work/vita/sadegh/argo/argoverse-api/"+middle_dir+"/data"
+        self.root_dir=base_dir+middle_dir+"/data"
         
-        from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 
         ##set root_dir to the correct path to your dataset folder
         self.afl = ArgoverseForecastingLoader(self.root_dir)
         
-        from argoverse.map_representation.map_api import ArgoverseMap
 
         self.avm = ArgoverseMap()
         self.mf=MapFeaturesUtils()
@@ -89,59 +92,60 @@ class BaseDataset(torch.utils.data.Dataset):
         
         helper=self.helpers[idx]
         
-        
         ############################# find lanes
         cnt_lines,img,cnt_lines_norm,world_to_image_space=self.mf.get_candidate_centerlines_for_trajectory(
-                        helper[0] if self.mode != "test"  else  helper[0][:20],
+                        helper[0][:20],
                         yaw_deg=helper[5],
                         city_name=helper[1][0],avm=self.avm,
             viz=True,
-            seq_len = 50,
+            seq_len = 60,
             max_candidates=10,
             )
         #############################
-#         print(helper)
         
-        traj= helper[0] if self.mode != "test"  else  helper[0][:20]
+        # normalize history    
+        traj= helper[0] if self.mode!="test" else helper[0][:20]
         traj = transform_points(traj-helper[0][19], yaw_as_rotation33(math.pi*helper[5]/180))
-        ############################## find agents history
-        agents_history= self.get_agents(idx,world_to_image_space,helper[0][19],)
-#         print("agents_history len ",len(agents_history[0]))
-        ##############################
+
+    
+        path_type=[]
+        path=[]
+        history_agent_type= []
+        history_agent= []
         
-        ############################## history positions 
-        ego_world_history=helper[0][:20]
-        history_xy = transform_points(ego_world_history, world_to_image_space)
-        history_xy=crop_tensor(history_xy, (224,224))
-#         print(len(history_xy))
-        ##############################
-#         print(len(agents_history))
-        path_type=[0]*len(cnt_lines_norm)+[1]+[2]*len(agents_history)
-#         print(len(cnt_lines_norm))
-        path_stacked_up=cnt_lines_norm+[history_xy]+agents_history
-#         print(len(path_stacked_up))
         
-        res = torch.cat([linear_path_to_tensor(path, -1) for path in path_stacked_up], 0)
-#         print(res.shape)
         
+        if self.use_history or self.use_agents:
+            if self.use_history:
+                ego_world_history=helper[0][:20]
+                history_xy = transform_points(ego_world_history, world_to_image_space)
+                history_xy=crop_tensor(history_xy, (224,224))
+                history_agent_type+=[1]
+                history_agent+=[history_xy]
+            if self.use_agents:
+                agents_history= self.get_agents(idx,world_to_image_space,helper[0][19],)
+                history_agent_type+=[2]*len(agents_history)
+                history_agent+=agents_history
+            
+            history_agent = torch.cat([linear_path_to_tensor(lane, -1) for lane in history_agent], 0)
 
-#         res = torch.cat([linear_path_to_tensor(path, -1) for path in cnt_lines_norm], 0)
-
-
-
-#         history_positions= torch.FloatTensor(transform_points(helper[0], world_to_image_space)),
-#         target_positions= torch.FloatTensor(self.input_data[idx]),
+            
+        if self.use_scene:
+            path_type=[0]*len(cnt_lines_norm)
+            path=torch.cat([linear_path_to_tensor(lane, -1) for lane in cnt_lines_norm], 0)
+            
+        
+        
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
                 "target_positions": torch.empty(1) if self.mode == "test" else torch.FloatTensor(traj[self.args.obs_len:]),
-                "path":res,
+                "path":path,
                 "path_type":path_type,
-#                 "image":img.transpose(2, 0, 1),
+                "history_agent":history_agent,
+                "history_agent_type":history_agent_type,
                 "base_image":img.transpose(2, 0, 1),
-                
                 "centroid":helper[0][19],
                 "yaw_deg":helper[5],
                 "seq_id":helper[8],
-#                 "cnt_lines_norm":cnt_lines_norm,
                 "world_to_image_space":world_to_image_space,
                }
     

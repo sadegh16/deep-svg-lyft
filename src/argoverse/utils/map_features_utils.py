@@ -238,6 +238,7 @@ class MapFeaturesUtils:
             obs_pred_lanes, xy, city_name, avm)
 
         # If the best centerline is not along the direction of travel, re-sort
+        
         if mode == "test":
             candidate_centerlines = self.get_heuristic_centerlines_for_test_set(
                 obs_pred_lanes, xy, city_name, avm, max_candidates, scores)
@@ -245,9 +246,14 @@ class MapFeaturesUtils:
             candidate_centerlines = avm.get_cl_from_lane_seq(
                 [obs_pred_lanes[0]], city_name)
 
-        centroid=xy[0]
+        centroid=xy[19]
+#         print("centroid is  ",centroid)
+#         print("yaw_deg is ",yaw_deg)
+        
         raster_size=(224,224)
         ego_yaw=-math.pi*yaw_deg/180
+#         print("ego_yaw is ",ego_yaw)
+        
         world_to_image_space = world_to_image_pixels_matrix(
         raster_size,
         (0.6,0.6),
@@ -257,7 +263,7 @@ class MapFeaturesUtils:
 
         )
         
-#         fig=plt.figure(figsize=(20, 20))
+#         fig=plt.figure(figsize=(15, 15))
         candidate_centerlines_normalized=[]
 
         if viz:
@@ -268,8 +274,14 @@ class MapFeaturesUtils:
                 cnt_line = transform_points(centerline_coords, world_to_image_space)
                 cv2.polylines(img, [cv2_subpixel(cnt_line)], False, (0, 0, 0), lineType=cv2.LINE_AA,shift=CV2_SHIFT )
                 cropped_vector=crop_tensor(cnt_line, raster_size)
+#                 print("*******")
+#                 print("image spcace cntr-line")
                 if len(cropped_vector)>1:
                     candidate_centerlines_normalized.append(cropped_vector)
+#                     print("cropped cntr-line",cropped_vector)
+#                     break
+                 
+                    
                 
             img=img.astype(np.float32) / 255
             
