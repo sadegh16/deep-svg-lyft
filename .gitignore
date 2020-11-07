@@ -1,0 +1,6 @@
+*.pyc 
+slurm*
+core*
+*.ipynb_checkpoints
+*__pycache__
+
