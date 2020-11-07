@@ -19,9 +19,9 @@ class Config(Config):
         self.filter_category = None
         self.train_ratio = 1.0
 
-        self.max_num_groups = 11
-        self.max_seq_len = 170
-        self.max_total_len = 1870
+        self.max_num_groups = 10
+        self.max_seq_len = 200
+        self.max_total_len = 2000
 
 
 
