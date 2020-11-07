@@ -24,7 +24,10 @@ class RasterModel(torch.nn.Module):
     def forward(self, x):
         res = self._forward(x)
         if type(x) is list:
-            bs = x[0].shape[0]
+            if type(x[0]) is list:
+                bs = x[0][0].shape[0]
+            else:
+                bs = x[0].shape[0]
         else:
             bs = x.shape[0]
         if self.modes != 1:
