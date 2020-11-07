@@ -9,6 +9,7 @@ from l5kit.configs import load_config_data
 from src.model_and_dataset.svg_dataset import SVGDataset
 
 from src.model_and_dataset.models.model_trajectory import ModelTrajectory
+from src.model_and_dataset.models.mlp_added_transformer import MLPTransformer
 from src.model_and_dataset.utils import neg_multi_log_likelihood
 
 from deepsvg.utils import Stats, TrainVars, Timer
@@ -117,8 +118,10 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
                                  max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
                                  data_dict=data_dict, args=args, mode="val")
         criterion= get_ade
-        model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
-
+        old_loss_criterion= nn.MSELoss()
+#         model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
+        model = MLPTransformer(model_config=model_cfg, data_config= None,
+                               modes=args.modes,history_num = 40,future_len=60).to(device)
     train_dataloader = DataLoader(train_dataset, batch_size=model_cfg.train_batch_size, shuffle=True,
                             num_workers=model_cfg.loader_num_workers,collate_fn=my_collate)
     validat_dataloader = DataLoader(val_dataset, batch_size=model_cfg.val_batch_size, shuffle=False,
@@ -135,8 +138,8 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
     print(f"#Parameters: {stats.num_parameters:,}")
 
     # Summary Writer
-    current_time = datetime.now().strftime("%b%d_%H-%M-%S")
-    experiment_identifier = f"{model_name}_{experiment_name}_{current_time}"
+#     current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+    experiment_identifier = f"{model_name}"
 
     summary_writer = SummaryWriter(os.path.join(log_dir, experiment_identifier))
     checkpoint_dir = os.path.join(log_dir, "models", model_name, experiment_name)
@@ -190,10 +193,16 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 
             for i, (loss_fn, optimizer, scheduler_lr, scheduler_warmup, optimizer_start) in enumerate(zip(loss_fns, optimizers, scheduler_lrs, scheduler_warmups, model_cfg.optimizer_starts), 1):
                 optimizer.zero_grad()
-                entery = [*model_args, params_dict, True]
+                history=data["history_positions"].to(device)
+#                 entery = [*model_args, params_dict, True]
+                entery = [[*model_args, {}, True],history]
                 output,conf = model(entery)
                 loss_dict = {}
                 loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
+                loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device), 
+                                                       output.reshape(data['target_positions'].shape),).mean()
+                
+                
                 if step >= optimizer_start:
                     loss_dict['loss'].backward()
                     if model_cfg.grad_clip is not None:
@@ -224,8 +233,9 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
             if step % model_cfg.val_every == 0 :
                 print("log val")
                 timer.reset()
-                torch.save(model.state_dict(),log_dir+"/"+experiment_identifier+"/"+model_name+"-"+str(step))
-                validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,step)
+                torch.save(model.state_dict(),log_dir+"/"+experiment_identifier+"/"+"checkpoint"+"-"+str(step))
+                validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,step,
+                          old_loss_criterion)
             
 #             if step % model_cfg.ckpt_every == 0:
 #                 utils.save_ckpt_list(checkpoint_dir, model, model_cfg, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
@@ -235,7 +245,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 
 
 
-def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,summary_writer,timer,train_step):
+def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,summary_writer,timer,train_step,old_loss_criterion):
     model.eval()
     for n_iter, data in enumerate(val_dataloader):
         if data is None:
@@ -254,12 +264,15 @@ def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,sum
             stats.write_tensorboard(summary_writer, "val")
             summary_writer.flush()
             return
-
-        entery = [*model_args, params_dict, True]
+        history=data["history_positions"].to(device)
+#         entery = [*model_args, params_dict, True]
+        entery = [[*model_args, {}, True],history]
         output,conf = model(entery)
         loss_dict = {}
         loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
-
+        loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device), 
+                                                       output.reshape(data['target_positions'].shape),).mean()
+                
         stats.update_stats_to_print("val", loss_dict)
 
         stats.update("val", train_step, epoch, {
@@ -349,6 +362,6 @@ if __name__ == "__main__":
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
     train(model_cfg=cfg, args=args,
-          model_name="svg-HS-2gpu-32-bs48-tt1650", experiment_name=experiment_name,
+          model_name="test", experiment_name=experiment_name,
           log_dir=args.log_dir, debug=args.debug, resume=args.resume)
 
