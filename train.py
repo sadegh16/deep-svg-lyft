@@ -10,6 +10,7 @@ from src.model_and_dataset.svg_dataset import SVGDataset
 
 from src.model_and_dataset.models.model_trajectory import ModelTrajectory
 from src.model_and_dataset.models.mlp_added_transformer import MLPTransformer
+from src.model_and_dataset.models.lstm_added_transformer import LSTMTransformer
 from src.model_and_dataset.utils import neg_multi_log_likelihood
 
 from deepsvg.utils import Stats, TrainVars, Timer
@@ -56,7 +57,7 @@ from src.argoverse.utils.raster_utils import RasterDataset
 
 
 def my_collate(batch):
-    "Puts each data field into a tensor with outer dimension batch size"
+    #     "Puts each data field into a tensor with outer dimension batch size"
     # print(batch)
     # batch = filter(lambda x:x is not None, batch)
     batch = list(filter(None, batch))
@@ -95,7 +96,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
         criterion = neg_multi_log_likelihood
         model = ModelTrajectory(model_cfg=model_cfg, data_config=data_cfg, modes=args.modes).to(device)
     elif args.data_type == "argo":
-        
+
         if args.use_map and args.use_social:
             baseline_key = "map_social"
         elif args.use_map:
@@ -105,7 +106,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
         else:
             baseline_key = "none"
         import numpy as np
-        
+
         data_dict = baseline_utils.get_data(args, baseline_key)
 
 
@@ -113,19 +114,24 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
         train_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
                                    data_dict=data_dict, args=args, mode="train")
+        print(train_dataset[0])
 
         val_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
                                  data_dict=data_dict, args=args, mode="val")
         criterion= get_ade
         old_loss_criterion= nn.MSELoss()
-#         model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
-        model = MLPTransformer(model_config=model_cfg, data_config= None,
-                               modes=args.modes,history_num = 40,future_len=60).to(device)
+        #         model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
+        #         model = MLPTransformer(model_config=model_cfg, data_config= None,
+        #                                modes=args.modes,history_num = 20,future_len=30).to(device)
+        #         model = LSTMTransformer(model_config=model_cfg, data_config= None,
+        #                                modes=args.modes,history_num = 20,future_len=30).to(device)
+        model = ModelTrajectory(model_cfg=model_cfg, data_config= None,
+                                modes=args.modes,future_len=30).to(device)
     train_dataloader = DataLoader(train_dataset, batch_size=model_cfg.train_batch_size, shuffle=True,
-                            num_workers=model_cfg.loader_num_workers,collate_fn=my_collate)
-    validat_dataloader = DataLoader(val_dataset, batch_size=model_cfg.val_batch_size, shuffle=False,
                                   num_workers=model_cfg.loader_num_workers,collate_fn=my_collate)
+    validat_dataloader = DataLoader(val_dataset, batch_size=model_cfg.val_batch_size, shuffle=False,
+                                    num_workers=model_cfg.loader_num_workers,collate_fn=my_collate)
 
     stats = Stats(num_steps=model_cfg.num_steps, num_epochs=model_cfg.num_epochs, steps_per_epoch=len(train_dataloader),
                   stats_to_print=model_cfg.stats_to_print)
@@ -138,12 +144,12 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
     print(f"#Parameters: {stats.num_parameters:,}")
 
     # Summary Writer
-#     current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+    current_time = datetime.now().strftime("%b%d_%H-%M-%S")
     experiment_identifier = f"{model_name}"
-
+    print("summary_writer", os.path.join(log_dir, experiment_identifier))
     summary_writer = SummaryWriter(os.path.join(log_dir, experiment_identifier))
     checkpoint_dir = os.path.join(log_dir, "models", model_name, experiment_name)
-    print(checkpoint_dir)
+    print("checkpoint_dir",checkpoint_dir)
 
     # model_cfg.set_train_vars(train_vars, train_dataloader)
 
@@ -154,21 +160,21 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 
     loss_fns = [l.to(device) for l in model_cfg.make_losses()]
 
-#     if not resume == " ":
-#         ckpt_exists = utils.load_ckpt_list(checkpoint_dir, model, None, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
+    #     if not resume == " ":
+    #         ckpt_exists = utils.load_ckpt_list(checkpoint_dir, model, None, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
 
-#     if not resume == " " and ckpt_exists:
-#         print(f"Resuming model at epoch {stats.epoch+1}")
-#         stats.num_steps = model_cfg.num_epochs * len(train_dataloader)
-#     if True:
-#         # Run a single forward pass on the single-device model_and_dataset for initialization of some modules
-#         single_foward_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True,
-#                                               num_workers=model_cfg.loader_num_workers , collate_fn=my_collate)
-#         data = next(iter(single_foward_dataloader))
-#         if data is not None:
-#             model_args, params_dict = [data['image'][arg].to(device) for arg in model_cfg.model_args], model_cfg.get_params(0, 0)
-#             entery = [*model_args,{},True]
-#             out = model(entery)
+    #     if not resume == " " and ckpt_exists:
+    #         print(f"Resuming model at epoch {stats.epoch+1}")
+    #         stats.num_steps = model_cfg.num_epochs * len(train_dataloader)
+    #     if True:
+    #         # Run a single forward pass on the single-device model_and_dataset for initialization of some modules
+    #         single_foward_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True,
+    #                                               num_workers=model_cfg.loader_num_workers , collate_fn=my_collate)
+    #         data = next(iter(single_foward_dataloader))
+    #         if data is not None:
+    #             model_args, params_dict = [data['image'][arg].to(device) for arg in model_cfg.model_args], model_cfg.get_params(0, 0)
+    #             entery = [*model_args,{},True]
+    #             out = model(entery)
     if torch.cuda.device_count() > 0:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
     model = nn.DataParallel(model)
@@ -194,15 +200,17 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
             for i, (loss_fn, optimizer, scheduler_lr, scheduler_warmup, optimizer_start) in enumerate(zip(loss_fns, optimizers, scheduler_lrs, scheduler_warmups, model_cfg.optimizer_starts), 1):
                 optimizer.zero_grad()
                 history=data["history_positions"].to(device)
-#                 entery = [*model_args, params_dict, True]
-                entery = [[*model_args, {}, True],history]
+                #                 print("history_positions", history.shape)
+                #                 entery = [*model_args, params_dict, True]
+                #                 entery = [[*model_args, {}, True],history]
+                entery = [*model_args, history, params_dict, True]
                 output,conf = model(entery)
                 loss_dict = {}
                 loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
-                loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device), 
-                                                       output.reshape(data['target_positions'].shape),).mean()
-                
-                
+                loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
+                                                           output.reshape(data['target_positions'].shape),).mean()
+
+
                 if step >= optimizer_start:
                     loss_dict['loss'].backward()
                     if model_cfg.grad_clip is not None:
@@ -235,8 +243,8 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
                 timer.reset()
                 torch.save(model.state_dict(),log_dir+"/"+experiment_identifier+"/"+"checkpoint"+"-"+str(step))
                 validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,step,
-                          old_loss_criterion)
-            
+                           old_loss_criterion)
+
 #             if step % model_cfg.ckpt_every == 0:
 #                 utils.save_ckpt_list(checkpoint_dir, model, model_cfg, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
 #                 print("save checkpoint")
@@ -246,38 +254,40 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
 
 
 def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,summary_writer,timer,train_step,old_loss_criterion):
-    model.eval()
-    for n_iter, data in enumerate(val_dataloader):
-        if data is None:
-            continue
-        step = n_iter
+    with torch.no_grad():
+        model.eval()
+        for n_iter, data in enumerate(val_dataloader):
+            if data is None:
+                continue
+            step = n_iter
 
-        model_args = [data['image'][arg].to(device) for arg in model_cfg.model_args]
-        params_dict, weights_dict = model_cfg.get_params(step, epoch), model_cfg.get_weights(step, epoch)
+            model_args = [data['image'][arg].to(device) for arg in model_cfg.model_args]
+            params_dict, weights_dict = model_cfg.get_params(step, epoch), model_cfg.get_weights(step, epoch)
 
-        if model_cfg.val_num_steps is not None and step > model_cfg.val_num_steps:
-            stats.update("val", train_step, epoch, {
-                **weights_dict,
-                "time": timer.get_elapsed_time()
-            })
-            print(stats.get_summary("val"))
-            stats.write_tensorboard(summary_writer, "val")
-            summary_writer.flush()
-            return
-        history=data["history_positions"].to(device)
-#         entery = [*model_args, params_dict, True]
-        entery = [[*model_args, {}, True],history]
-        output,conf = model(entery)
-        loss_dict = {}
-        loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
-        loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device), 
+            if model_cfg.val_num_steps is not None and step > model_cfg.val_num_steps:
+                stats.update("val", train_step, epoch, {
+                    **weights_dict,
+                    "time": timer.get_elapsed_time()
+                })
+                print(stats.get_summary("val"))
+                stats.write_tensorboard(summary_writer, "val")
+                summary_writer.flush()
+                return
+            history=data["history_positions"].to(device)
+            #         entery = [*model_args, params_dict, True]
+            #             entery = [[*model_args, {}, True],history]
+            entery = [*model_args, history, {}, True]
+            output,conf = model(entery)
+            loss_dict = {}
+            loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
+            loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
                                                        output.reshape(data['target_positions'].shape),).mean()
-                
-        stats.update_stats_to_print("val", loss_dict)
 
-        stats.update("val", train_step, epoch, {
-            **loss_dict
-        })
+            stats.update_stats_to_print("val", loss_dict)
+
+            stats.update("val", train_step, epoch, {
+                **loss_dict
+            })
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DeepSVG Trainer')
@@ -362,6 +372,7 @@ if __name__ == "__main__":
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
     train(model_cfg=cfg, args=args,
-          model_name="test", experiment_name=experiment_name,
-          log_dir=args.log_dir, debug=args.debug, resume=args.resume)
+          model_name="svg-H20S-2gpu-bs32-tt2200-mlp-between-encoder-residual", experiment_name="test",
+          log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)
+
 
