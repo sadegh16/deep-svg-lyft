@@ -9,6 +9,7 @@
 #SBATCH --reservation=vita-2020-11
 
 module load gcc/8.4.0-cuda  python/3.7.7
-source ../../../../argo-env/bin/activate
+source /work/vita/sadegh/argo/argo-env/bin/activate
 python -V
-python train.py --config-module configs.deepsvg.hierarchical_ordered --data-type argo --modes 1 --obs_len 20  --pred_len 30  --normalize   --train_features ../../../forecasting_features_train.pkl   --val_features ../../../forecasting_features_val.pkl --test_features ../../../forecasting_features_test.pkl   
+python train.py --config-module configs.deepsvg.hierarchical_ordered --data-type argo --modes 1 --obs_len 20  --pred_len 30  --normalize   --train_features /work/vita/sadegh/argo/argoverse-forecasting/forecasting_features_train.pkl   --val_features /work/vita/sadegh/argo/argoverse-forecasting/forecasting_features_val.pkl --test_features /work/vita/sadegh/argo/argoverse-forecasting/forecasting_features_test.pkl
+

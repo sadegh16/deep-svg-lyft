@@ -2,9 +2,9 @@ import torch
 import torchvision as tv
 import typing as th
 from .template import RasterModel
-from deepsvg.model.model import SVGTransformer
-
-
+# from deepsvg.model.model import SVGTransformer
+from deepsvg.model.modified_model import SVGTransformer
+# from deepsvg.model.modified_model_between import SVGTransformer
 # class ModelTrajectory(torch.nn.Module):
 #     def __init__(self,model_cfg,dim_z=128):
 #         super().__init__()
@@ -18,8 +18,8 @@ from deepsvg.model.model import SVGTransformer
 #     def forward(self,x):
 #         commands_enc,args_enc, commands_dec, args_dec,params , encode_mode = x
 #         return self.model(commands_enc,args_enc, commands_dec, args_dec,params=params , encode_mode=encode_mode).squeeze(0).squeeze(0)
-    
-    
+
+
 
 class ModelTrajectory(RasterModel):
     def __init__(self, model_cfg, data_config, modes=1, future_len=None, in_channels=None, pretrained=True):
@@ -31,6 +31,6 @@ class ModelTrajectory(RasterModel):
         self.model = SVGTransformer(self.model_cfg.model_cfg)
 
     def _forward(self, x):
-        commands_enc, args_enc, commands_dec, args_dec, params, encode_mode = x
-        return self.model(commands_enc, args_enc, commands_dec, args_dec, params=params,
-                          encode_mode=encode_mode).squeeze(0).squeeze(0)
+        commands_enc, args_enc, commands_dec, args_dec,history,params, encode_mode = x
+        return self.model(commands_enc, args_enc, commands_dec, args_dec,history=history, params=params,
+                          encode_mode=encode_mode)

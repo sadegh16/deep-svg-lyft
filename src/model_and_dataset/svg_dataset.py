@@ -116,7 +116,7 @@ class SVGDataset(torch.utils.data.Dataset):
     def normalize_history(svg, normalize=True):
         svg.canonicalize(normalize=normalize)
         return svg.normalize()
-    
+
     def get(self, idx=0, model_args=None, random_aug=True, id=None, svg: SVG = None):
         item = self.data[idx]
         if self.svg and self.svg_cmds:
@@ -130,13 +130,15 @@ class SVGDataset(torch.utils.data.Dataset):
                 tens_scene = apply_colors(tens_scene, item['path_type'])
             if len(item['history_agent_type'])!=0:
                 tens_path = apply_colors(tens_path, item['history_agent_type'])
-            
+
             tens = tens_scene+tens_path
             del item['path']
             del item['path_type']
             del item['history_agent']
             del item['history_agent_type']
             item['image'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
+        if item['image'] is None:
+            return None
         return item
 
     def get_data(self, idx, t_sep, fillings, model_args=None, label=None):

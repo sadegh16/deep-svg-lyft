@@ -22,7 +22,12 @@ class MLPTransformer(RasterModel):
 
     def _forward(self, x):
         scene,history = x
+        #         print("scene",scene[0].shape,"history",history.shape)
         s = self.transformer(scene)
+        #         print(1,s.shape)
         h = self.history_mlp(torch.flatten(history,start_dim=1))
+        #         print(2,h.shape)
         z = torch.cat((s,h), dim=1)
+        #         print(3,z.shape)
         return self.final_mlp(z)
+

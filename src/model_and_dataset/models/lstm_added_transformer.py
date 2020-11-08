@@ -11,7 +11,10 @@ class LSTMTransformer(RasterModel):
         self.transformer = ModelTrajectory(model_cfg=model_config)
         self.history_LSTM= torch.nn.Sequential(torch.nn.LSTM(history_num, 32),)
         self.linear = torch.nn.Sequential(torch.nn.Linear(64+128, 128),
-                                          torch.nn.ReLU(),)
+                                          torch.nn.ReLU(),
+                                          torch.nn.Linear(128, 128),
+                                          torch.nn.ReLU(),
+                                          torch.nn.Linear(128, self.out_dim),)
         self.final_LSTM = torch.nn.LSTM(128, self.out_dim)
 
     def _forward(self, x):
@@ -20,6 +23,6 @@ class LSTMTransformer(RasterModel):
         h ,hidden= self.history_LSTM(history.permute(0, 2, 1))
         z = torch.cat((s,h.flatten(start_dim=1)), dim=1)
         l = self.linear(z)
-        o,h = self.final_LSTM(l.unsqueeze(1))
-        return o.squeeze(1)
+        return l
+
 
