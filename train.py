@@ -7,7 +7,6 @@ import argparse
 import importlib
 from l5kit.configs import load_config_data
 from src.model_and_dataset.svg_dataset import SVGDataset
-
 from src.model_and_dataset.models.model_trajectory import ModelTrajectory
 from src.model_and_dataset.models.mlp_added_transformer import MLPTransformer
 from src.model_and_dataset.models.lstm_added_transformer import LSTMTransformer
@@ -68,7 +67,7 @@ def my_collate(batch):
         return
 
 
-def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./logs", debug=False, resume=" "):
+def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, log_dir="./logs", debug=False, resume=" "):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.data_type == "lyft":
         data_cfg = load_config_data(args.config_data)
@@ -113,21 +112,26 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
         # # Get PyTorch Dataset
         train_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
-                                   data_dict=data_dict, args=args, mode="train")
-        print(train_dataset[0])
-
+                                   data_dict=data_dict, args=args, mode="train",model_type=model_type)
+        x = train_dataset[0]
+        x = train_dataset[2]
+        x = train_dataset[3]
         val_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
-                                 data_dict=data_dict, args=args, mode="val")
+                                 data_dict=data_dict, args=args, mode="val",model_type=model_type)
         criterion= get_ade
         old_loss_criterion= nn.MSELoss()
-        #         model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
-        #         model = MLPTransformer(model_config=model_cfg, data_config= None,
-        #                                modes=args.modes,history_num = 20,future_len=30).to(device)
-        #         model = LSTMTransformer(model_config=model_cfg, data_config= None,
-        #                                modes=args.modes,history_num = 20,future_len=30).to(device)
-        model = ModelTrajectory(model_cfg=model_cfg, data_config= None,
-                                modes=args.modes,future_len=30).to(device)
+        ###LSTM,MLP,MLP_Before_Residual,Encoder_One_MLP,Encoder_One_Transformer
+        if model_type == 2:
+            model = LSTMTransformer(model_config=model_cfg, data_config= None,
+                                    modes=args.modes,history_num = 20,future_len=30).to(device)
+        elif model_type == 3:
+            model = MLPTransformer(model_config=model_cfg, data_config= None,
+                                   modes=args.modes,history_num = 20,future_len=30).to(device)
+        else:
+            model = ModelTrajectory(model_cfg=model_cfg, data_config= None,model_type=model_type,
+                                    modes=args.modes,future_len=30).to(device)
+
     train_dataloader = DataLoader(train_dataset, batch_size=model_cfg.train_batch_size, shuffle=True,
                                   num_workers=model_cfg.loader_num_workers,collate_fn=my_collate)
     validat_dataloader = DataLoader(val_dataset, batch_size=model_cfg.val_batch_size, shuffle=False,
@@ -200,10 +204,14 @@ def train(model_cfg:_Config, args, model_name, experiment_name="", log_dir="./lo
             for i, (loss_fn, optimizer, scheduler_lr, scheduler_warmup, optimizer_start) in enumerate(zip(loss_fns, optimizers, scheduler_lrs, scheduler_warmups, model_cfg.optimizer_starts), 1):
                 optimizer.zero_grad()
                 history=data["history_positions"].to(device)
-                #                 print("history_positions", history.shape)
-                #                 entery = [*model_args, params_dict, True]
-                #                 entery = [[*model_args, {}, True],history]
-                entery = [*model_args, history, params_dict, True]
+                if model_type == 2 or model_type == 3:
+                    entery = [[*model_args, {}, True],history]
+                elif model_type == 1:
+                    entery = [*model_args, params_dict, True]
+                elif model_type == 4 or model_type == 5:
+                    entery = [*model_args, history, params_dict, True]
+                elif model_type == 6:
+                    entery = [*model_args,data['history_svg']['commands'],data['history_svg']['args'], params_dict, True]
                 output,conf = model(entery)
                 loss_dict = {}
                 loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
@@ -371,8 +379,9 @@ if __name__ == "__main__":
         cfg.val_idxs = args.val_idxs
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
+    model_type=6 ###Normal=1 ,LSTM=2 ,MLP=3,MLP_Before_Residual=4 ,Encoder_One_MLP=5 ,Encoder_One_Transformer=6
     train(model_cfg=cfg, args=args,
-          model_name="svg-H20S-2gpu-bs32-tt2200-mlp-between-encoder-residual", experiment_name="test",
+          model_name="test_new_format_and_dataset",model_type=model_type, experiment_name="test",
           log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)
 
 

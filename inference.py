@@ -18,7 +18,6 @@ from tqdm import tqdm
 
 model_cfg = importlib.import_module("configs.deepsvg.hierarchical_ordered").Config()
 
-from src.model_and_dataset.models.model_trajectory import ModelTrajectory
 from src.model_and_dataset.utils import neg_multi_log_likelihood
 from src.model_and_dataset.svg_dataset import SVGDataset
 
@@ -128,10 +127,10 @@ data_dict = baseline_utils.get_data(args, baseline_key)
 
 
 
-# model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=1, future_len=30, in_channels=3)
+model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=1, future_len=30, in_channels=3)
 # model = LSTMTransformer(model_config=model_cfg, data_config= None,modes=1,history_num = 20,future_len=30)
-model = MLPTransformer(model_config=model_cfg, data_config= None,modes=1,history_num = 20,future_len=30)
-model_path="/work/vita/ayromlou/argo_code/logs/svg-H20S-2gpu-bs32-tt2200-mlp-v3/checkpoint-27000"
+# model = MLPTransformer(model_config=model_cfg, data_config= None,modes=1,history_num = 20,future_len=30)
+model_path="/work/vita/ayromlou/argo_code/logs/svg-H20S-2gpu-bs32-tt2200-mlp-between-encoder-residual-v3/checkpoint-4500"
 checkpoint = torch.load(model_path,map_location=device)
 print(model_path)
 
@@ -178,14 +177,15 @@ for dd in progress_bar:
         model_args = [dd["image"][arg].to(device) for arg in model_cfg.model_args]
         #         entery = [*model_args, {}, True]
         history=dd["history_positions"].to(device)
-        entery = [[*model_args, {}, True],history]
+        #         entery = [[*model_args, {}, True],history]
+        entery = [*model_args,history, {}, True]
         output,conf = model(entery)
         output=output.reshape((dd["history_positions"].shape[0],30,2)).cpu()
         for i in range(output.shape[0]):
             rot_output=transform_points(output[i], yaw_as_rotation33(ego_yaw[i]))+centroids[i]
             forecasted_trajectories[seq_id[i]] = [rot_output]
 print("saving output")
-output_path = '/work/vita/ayromlou/argo_code/deep-svg-motion-prediction/competition_files/27000'
+output_path = '/work/vita/ayromlou/argo_code/deep-svg-motion-prediction/competition_files/mlp_between_4500'
 
 generate_forecasting_h5(forecasted_trajectories, output_path) #this might take awhile
 

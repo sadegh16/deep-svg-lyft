@@ -57,10 +57,12 @@ def _get_visibility_mask(commands, seq_dim=0,modified=False):
         visibility_mask = (commands == SVGTensor.COMMANDS_SIMPLIFIED.index("EOS")).sum(dim=seq_dim) < S - 1
         # print("visibility_mask",visibility_mask.shape)
         if modified == True:
-            l =torch.tensor((1,commands.size(2)),dtype=bool)
+            #             print(visibility_mask.shape[1])
+            l =torch.ones((1,visibility_mask.shape[1]),dtype=bool)
             # print("my tensor",l.unsqueeze(0))
             # print(l.shape)
-            visibility_mask = torch.cat((visibility_mask,l.unsqueeze(0).to(device='cuda')))
+            #             print("visibility_mask",visibility_mask.shape,l.unsqueeze(0).shape,commands.shape)
+            visibility_mask = torch.cat((visibility_mask,l.to(device='cuda')))
         # print("visibility_mask",visibility_mask.shape)
 
         if seq_dim == 0:
@@ -74,12 +76,11 @@ def _get_key_visibility_mask(commands, seq_dim=0,modified=False):
         key_visibility_mask = (commands == SVGTensor.COMMANDS_SIMPLIFIED.index("EOS")).sum(dim=seq_dim) >= S - 1
         # print("key_visibility_mask",key_visibility_mask.shape)
         if modified == True:
-            l =torch.tensor((1,commands.size(2)),dtype=bool)
+            l =torch.zeros((1,key_visibility_mask.shape[1]),dtype=bool)
             #             print(l)
-            for i in range(commands.size(2)):
-                l[i] = False
             #             print("my second",l.unsqueeze(0))
-            key_visibility_mask = torch.cat((key_visibility_mask,l.unsqueeze(0).to(device='cuda')))
+            #             print("visibility_mask",key_visibility_mask.shape,l.unsqueeze(0).shape,commands.shape)
+            key_visibility_mask = torch.cat((key_visibility_mask,l.to(device='cuda')))
         if seq_dim == 0:
             return key_visibility_mask.transpose(0, 1)
         return key_visibility_mask

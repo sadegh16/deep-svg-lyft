@@ -83,7 +83,7 @@ class Config(_Config):
 
     def visualize(self, model, output, train_vars, step, epoch, summary_writer, visualization_dir):
         device = next(model.parameters()).device
-        
+
         # Reconstruction
         for i, data in enumerate(train_vars.x_inputs_train):
             model_args = batchify((data[key] for key in self.model_args), device)

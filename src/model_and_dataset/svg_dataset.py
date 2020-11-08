@@ -26,9 +26,10 @@ class SVGDataset(torch.utils.data.Dataset):
                  perturbation=None, agents_mask=None,
                  min_frame_history=10, min_frame_future=1,
                  data_dict = None, args=None, mode=None,
-                 max_total_len=None, PAD_VAL=-1,csv_path=None):
+                 max_total_len=None, PAD_VAL=-1,csv_path=None,model_type=None):
 
         super().__init__()
+        self.model_type = model_type
         if data_type == "lyft":
             print(data_cfg)
             map_type = data_cfg['raster_params']['map_type']
@@ -125,18 +126,24 @@ class SVGDataset(torch.utils.data.Dataset):
             if len(item['path'])!=0:
                 tens_scene = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
             if len(item['history_agent'])!=0:
+                #                 print(item['history_agent'])
                 tens_path = self.normalize_history(SVG.from_tensor(item['history_agent'])).split_paths().to_tensor(concat_groups=False)
             if len(item['path_type'])!=0:
                 tens_scene = apply_colors(tens_scene, item['path_type'])
             if len(item['history_agent_type'])!=0:
                 tens_path = apply_colors(tens_path, item['history_agent_type'])
-
-            tens = tens_scene+tens_path
             del item['path']
             del item['path_type']
             del item['history_agent']
             del item['history_agent_type']
-            item['image'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
+            if self.model_type == 6:
+                #                 print(len(tens_path))
+                item['image'] = self.get_data(idx,tens_scene, None, model_args=model_args, label=None)
+                item['history_svg'] = self.get_data_history(idx,tens_path, None, model_args=model_args, label=None)
+            #                 print(item['history_svg']["args"].shape,item['history_svg']["commands"].shape)
+            else:
+                tens = tens_scene+tens_path
+                item['image'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
         if item['image'] is None:
             return None
         return item
@@ -194,4 +201,52 @@ class SVGDataset(torch.utils.data.Dataset):
         if "label" in model_args:
             res["label"] = label
         return res
+
+
+    def get_data_history(self, idx, t_sep, fillings, model_args=None, label=None):
+        res = {}
+        # max_len_commands = 0
+        # len_path = len(t_sep)
+        if model_args is None:
+            model_args = self.model_args
+        pad_len = 0
+
+        t_sep.extend([torch.empty(0, 14)] * pad_len)
+        #             print("t_sep",len(t_sep))
+
+        t_grouped = [SVGTensor.from_data(torch.cat(t_sep, dim=0), PAD_VAL=self.PAD_VAL).add_eos().add_sos()]
+        t_normal = []
+        for t in t_sep:
+            s = SVGTensor.from_data(t, PAD_VAL=self.PAD_VAL)
+            #                 print(1,len(s.commands))
+            j = s.add_eos().add_sos().pad(seq_len=20 + 2)
+            #                 print(2,len(s.commands))
+            t_normal.append(j)
+
+        for arg in set(model_args):
+            if "_grouped" in arg:
+                arg_ = arg.split("_grouped")[0]
+                t_list = t_grouped
+            else:
+                arg_ = arg
+                t_list = t_normal
+
+            if arg_ == "tensor":
+                res[arg] = t_list
+
+            if arg_ == "commands":
+                res[arg] = torch.stack([t.cmds() for t in t_list])
+
+            if arg_ == "args_rel":
+                res[arg] = torch.stack([t.get_relative_args() for t in t_list])
+            if arg_ == "args":
+                res[arg] = torch.stack([t.args() for t in t_list])
+
+        if "filling" in model_args:
+            res["filling"] = torch.stack([torch.tensor(t.filling) for t in t_sep]).unsqueeze(-1)
+
+        if "label" in model_args:
+            res["label"] = label
+        return res
+
 

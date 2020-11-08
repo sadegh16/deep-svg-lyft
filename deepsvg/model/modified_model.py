@@ -6,8 +6,8 @@ from .layers.improved_transformer import *
 from .layers.positional_encoding import *
 from .basic_blocks import FCN, HierarchFCN, ResNet
 from .config import _DefaultConfig
-from deepsvg.model.layers.utils import (_get_padding_mask, _get_key_padding_mask, _get_group_mask, _get_visibility_mask,
-                                        _get_key_visibility_mask, _generate_square_subsequent_mask, _sample_categorical, _threshold_sample)
+from .utils import (_get_padding_mask, _get_key_padding_mask, _get_group_mask, _get_visibility_mask,
+                    _get_key_visibility_mask, _generate_square_subsequent_mask, _sample_categorical, _threshold_sample)
 
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 from scipy.optimize import linear_sum_assignment
@@ -299,14 +299,14 @@ class SVGTransformer(nn.Module):
         self.decoder = Decoder(cfg)
 
         self.register_buffer("cmd_args_mask", SVGTensor.CMD_ARGS_MASK)
-        #         self.history_mlp= torch.nn.Sequential(torch.nn.Linear(40, 96),
-        #                                               torch.nn.ReLU(),
-        #                                               torch.nn.Linear(96, 64),)
-        self.history_mlp= torch.nn.Sequential(torch.nn.Linear(40, 128),
-                                              torch.nn.ReLU(),
-                                              torch.nn.Linear(128, 96),
+        self.history_mlp= torch.nn.Sequential(torch.nn.Linear(40, 96),
                                               torch.nn.ReLU(),
                                               torch.nn.Linear(96, 64),)
+        #         self.history_mlp= torch.nn.Sequential(torch.nn.Linear(40, 128),
+        #                                               torch.nn.ReLU(),
+        #                                               torch.nn.Linear(128, 96),
+        #                                               torch.nn.ReLU(),
+        #                                               torch.nn.Linear(96, 64),)
         for i in range(0,len(self.history_mlp),2):
             nn.init.kaiming_normal_(self.history_mlp[i].weight, mode="fan_in")
 
