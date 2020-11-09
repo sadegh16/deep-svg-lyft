@@ -10,7 +10,7 @@ class EncoderCell(nn.Module):
     def __init__(self,
                  input_size: int = 2,
                  embedding_size: int = 8,
-                 hidden_size: int = 16):
+                 hidden_size: int = 256):
         """Initialize the encoder network.
         Args:
             input_size: number of features in the input
