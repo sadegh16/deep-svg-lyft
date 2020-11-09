@@ -251,7 +251,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
                 timer.reset()
                 torch.save(model.state_dict(),log_dir+"/"+experiment_identifier+"/"+"checkpoint"+"-"+str(step))
                 validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,step,
-                           old_loss_criterion)
+                           old_loss_criterion,model_type)
 
 #             if step % model_cfg.ckpt_every == 0:
 #                 utils.save_ckpt_list(checkpoint_dir, model, model_cfg, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
@@ -261,7 +261,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
 
 
 
-def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,summary_writer,timer,train_step,old_loss_criterion):
+def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,summary_writer,timer,train_step,old_loss_criterion,model_type):
     with torch.no_grad():
         model.eval()
         for n_iter, data in enumerate(val_dataloader):
@@ -282,9 +282,17 @@ def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,sum
                 summary_writer.flush()
                 return
             history=data["history_positions"].to(device)
+            if model_type == 2 or model_type == 3:
+                entery = [[*model_args, {}, True],history]
+            elif model_type == 1:
+                entery = [*model_args, params_dict, True]
+            elif model_type == 4 or model_type == 5:
+                entery = [*model_args, history, params_dict, True]
+            elif model_type == 6:
+                entery = [*model_args,data['history_svg']['commands'],data['history_svg']['args'], params_dict, True]
             #         entery = [*model_args, params_dict, True]
             #             entery = [[*model_args, {}, True],history]
-            entery = [*model_args, history, {}, True]
+            #             entery = [*model_args, history, {}, True]
             output,conf = model(entery)
             loss_dict = {}
             loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
@@ -379,9 +387,9 @@ if __name__ == "__main__":
         cfg.val_idxs = args.val_idxs
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
-    model_type=6 ###Normal=1 ,LSTM=2 ,MLP=3,MLP_Before_Residual=4 ,Encoder_One_MLP=5 ,Encoder_One_Transformer=6
+    model_type=3 ###Normal=1 ,LSTM=2 ,MLP=3,MLP_Before_Residual=4 ,Encoder_One_MLP=5 ,Encoder_One_Transformer=6
     train(model_cfg=cfg, args=args,
-          model_name="test_new_format_and_dataset",model_type=model_type, experiment_name="test",
+          model_name="concat-both-MLP-and_Encoder_One_MLP",model_type=model_type, experiment_name="test",
           log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)
 
 
