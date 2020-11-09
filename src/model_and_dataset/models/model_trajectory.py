@@ -46,15 +46,15 @@ class ModelTrajectory(RasterModel):
 
 
     def _forward(self, x):
-        if self.model_type == "MLP_Before_Residual" or self.model_type == "Encoder_One_MLP":
+        if self.model_type == 4 or self.model_type == 5:
             commands_enc, args_enc, commands_dec, args_dec,history,params, encode_mode = x
             return self.model(commands_enc, args_enc, commands_dec, args_dec,history=history, params=params,
                               encode_mode=encode_mode)
-        if self.model_type == "Encoder_One_Transformer":
+        if self.model_type == 6:
             commands_enc, args_enc, commands_dec, args_dec,commands_his,args_his ,params, encode_mode = x
             return self.model(commands_enc, args_enc, commands_dec, args_dec,commands_his=commands_his,args_his=args_his, params=params,
                               encode_mode=encode_mode)
-        if self.model_type == "Normal":
+        if self.model_type == 1:
             commands_enc, args_enc, commands_dec, args_dec,params, encode_mode = x
             return self.model(commands_enc, args_enc, commands_dec, args_dec,params=params,
                               encode_mode=encode_mode)
