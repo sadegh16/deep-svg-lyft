@@ -77,3 +77,7 @@ EXIST_THRESHOLD = (
 DEFAULT_MIN_DIST_FRONT_AND_BACK = 100.0  # Default front/back distance
 NEARBY_DISTANCE_THRESHOLD = 50.0  # Distance threshold to call a track as neighbor
 FRONT_OR_BACK_OFFSET_THRESHOLD = 5.0  # Offset threshold from direction of travel
+
+
+MAX_AGENTS_NUM=10
+MIN_AGENTS_DIST=40

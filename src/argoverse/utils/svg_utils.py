@@ -31,7 +31,7 @@ import math
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,base_dir="/work/vita/sadegh/argo/argoverse-api/",
-                use_history=True, use_agents=False ,use_scene=True):
+                use_history=True, use_agents=True,use_scene=True):
         """Initialize the Dataset.
 
         Args:
@@ -91,7 +91,8 @@ class BaseDataset(torch.utils.data.Dataset):
         
         
         helper=self.helpers[idx]
-        
+#         hp=helper[0][:20]
+#         seq_to_find_lanes=np.concatenate([hp,[hp[-1]+i*(hp[-1]-hp[-2]) for i in range(1,10)]])
         ############################# find lanes
         cnt_lines,img,cnt_lines_norm,world_to_image_space=self.mf.get_candidate_centerlines_for_trajectory(
                         helper[0][:20],
@@ -112,8 +113,8 @@ class BaseDataset(torch.utils.data.Dataset):
         path=[]
         history_agent_type= []
         history_agent= []
-        
-        
+        agents_num=0
+        normal_agents_hist=[]
         
         if self.use_history or self.use_agents:
             if self.use_history:
@@ -123,7 +124,7 @@ class BaseDataset(torch.utils.data.Dataset):
                 history_agent_type+=[1]
                 history_agent+=[history_xy]
             if self.use_agents:
-                agents_history= self.get_agents(idx,world_to_image_space,helper[0][19],)
+                agents_history,normal_agents_hist,agents_num = self.get_agents(idx,world_to_image_space,helper[0][19],helper[5])
                 history_agent_type+=[2]*len(agents_history)
                 history_agent+=agents_history
             
@@ -137,6 +138,8 @@ class BaseDataset(torch.utils.data.Dataset):
         
         
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
+                "normal_agents_history":normal_agents_hist,
+                "agents_num":agents_num,
                 "target_positions": torch.empty(1) if self.mode == "test" else torch.FloatTensor(traj[self.args.obs_len:]),
                 "path":path,
                 "path_type":path_type,
@@ -193,7 +196,7 @@ class BaseDataset(torch.utils.data.Dataset):
 
         return tuple(helpers)
 
-    def get_agents(self,index,world_to_image_space,centroid) :
+    def get_agents(self,index,world_to_image_space,centroid,yaw_deg) :
         """Get agents
 
         """
@@ -205,28 +208,39 @@ class BaseDataset(torch.utils.data.Dataset):
         frames = df.groupby("TRACK_ID")
 
         res=[]
+        normal_agents_hist=np.zeros((MAX_AGENTS_NUM,self.args.obs_len,2))
+
 #         print(len(frames))
         # Plot all the tracks up till current frame
         num_selected=0
+        
+        rotation_mat=yaw_as_rotation33(math.pi*yaw_deg/180)
         for group_name, group_data in frames:
             object_type = group_data["OBJECT_TYPE"].values[0]
             
             
 #             print(group_data[["X","Y"]].values.shape).
             cor_xy = group_data[["X","Y"]].to_numpy()
-            cor_xy=cor_xy[:self.args.obs_len]
-            if np.linalg.norm(centroid-cor_xy[-1])>40:
+            if cor_xy.shape[0]<20:
                 continue
+            
+            cor_xy=cor_xy[:self.args.obs_len]
+            if np.linalg.norm(centroid-cor_xy[-1])>MIN_AGENTS_DIST:
+                continue
+            
+            
+            traj = transform_points(cor_xy-centroid,rotation_mat )
             cor_xy = transform_points(cor_xy, world_to_image_space)
 #             print(cor_xy.shape)
             cropped_vector=crop_tensor(cor_xy, (224,224))
 #             print(cropped_vector.shape)
             
             if len(cropped_vector)>1:
+                normal_agents_hist[num_selected]=traj
                 res.append(cropped_vector)
                 num_selected+=1 
-            if num_selected>=15:
+            if num_selected>=MAX_AGENTS_NUM:
                 break
 #         print(num_selected)
-        return res
+        return res,normal_agents_hist,num_selected
 
