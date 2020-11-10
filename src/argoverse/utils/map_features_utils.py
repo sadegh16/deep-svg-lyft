@@ -170,6 +170,7 @@ class MapFeaturesUtils:
             seq_len: int = 50,
             max_candidates: int = 10,
             mode: str = "test",
+            end_point=None
     ) -> List[np.ndarray]:
         """Get centerline candidates upto a threshold.
 
@@ -192,16 +193,18 @@ class MapFeaturesUtils:
             candidate_centerlines: List of candidate centerlines
 
         """
+        if end_point is None:
+            end_point=xy[-1]
         # Get all lane candidates within a bubble
         curr_lane_candidates = avm.get_lane_ids_in_xy_bbox(
-            xy[-1, 0], xy[-1, 1], city_name, self._MANHATTAN_THRESHOLD)
+            end_point[0], end_point[1], city_name, self._MANHATTAN_THRESHOLD)
 
         # Keep expanding the bubble until at least 1 lane is found
         while (len(curr_lane_candidates) < 1
                and self._MANHATTAN_THRESHOLD < max_search_radius):
             self._MANHATTAN_THRESHOLD *= 2
             curr_lane_candidates = avm.get_lane_ids_in_xy_bbox(
-                xy[-1, 0], xy[-1, 1], city_name, self._MANHATTAN_THRESHOLD)
+                end_point[0], end_point[1], city_name, self._MANHATTAN_THRESHOLD)
 
         assert len(curr_lane_candidates) > 0, "No nearby lanes found!!"
 

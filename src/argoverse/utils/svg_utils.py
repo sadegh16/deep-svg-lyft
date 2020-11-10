@@ -32,7 +32,7 @@ SEQ_LEN=170
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,base_dir="/work/vita/sadegh/argo/argoverse-api/",
-                use_history=True, use_agents=False,use_scene=True):
+                use_history=True, use_agents=True,use_scene=True):
         """Initialize the Dataset.
 
         Args:
@@ -110,15 +110,16 @@ class BaseDataset(torch.utils.data.Dataset):
         
         helper=self.helpers[idx]
         hp=helper[0][:20]
-#         hp=np.concatenate([hp,[hp[-1]+i*(hp[-1]-hp[-2]) for i in range(1,25)]])
+#         hp=np.concatenate([hp,[hp[-1]+i*(hp[-1]-hp[-2]) for i in range(1,20)]])
         ############################# find lanes
         cnt_lines,img,cnt_lines_norm,world_to_image_space=self.mf.get_candidate_centerlines_for_trajectory(
                         hp,
                         yaw_deg=helper[5],
                         city_name=helper[1][0],avm=self.avm,
             viz=True,
-            seq_len = 50,
+            seq_len = 60,
             max_candidates=MAX_CNTR_LINES,
+            end_point=hp[-1]+20*(hp[-1]-hp[-2])
             )
         #############################
         
@@ -155,8 +156,8 @@ class BaseDataset(torch.utils.data.Dataset):
             
         
         
-        
-        available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
+#         print(path[0].shape)
+#         available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
         
         
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
@@ -172,8 +173,8 @@ class BaseDataset(torch.utils.data.Dataset):
                 "yaw_deg":helper[5],
                 "seq_id":helper[8],
                 "world_to_image_space":world_to_image_space,
-                "padded_cntr_lines":padded_cntr_lines,
-                "available_cntr_size":available_cntr_size,
+#                 "padded_cntr_lines":padded_cntr_lines,
+#                 "available_cntr_size":available_cntr_size,
                 
                }
     
