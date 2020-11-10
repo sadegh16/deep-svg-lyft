@@ -119,7 +119,7 @@ class BaseDataset(torch.utils.data.Dataset):
             viz=True,
             seq_len = 60,
             max_candidates=MAX_CNTR_LINES,
-            end_point=hp[-1]+20*(hp[-1]-hp[-2])
+            end_point=hp[-1]+CV_END*(hp[-1]-hp[-2])
             )
         #############################
         

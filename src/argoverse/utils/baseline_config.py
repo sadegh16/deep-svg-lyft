@@ -81,3 +81,4 @@ FRONT_OR_BACK_OFFSET_THRESHOLD = 5.0  # Offset threshold from direction of trave
 
 MAX_AGENTS_NUM=10
 MIN_AGENTS_DIST=40
+CV_END=20
