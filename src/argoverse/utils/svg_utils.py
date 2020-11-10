@@ -117,7 +117,7 @@ class BaseDataset(torch.utils.data.Dataset):
                         yaw_deg=helper[5],
                         city_name=helper[1][0],avm=self.avm,
             viz=True,
-            seq_len = 60,
+            seq_len = 50,
             max_candidates=MAX_CNTR_LINES,
             )
         #############################
