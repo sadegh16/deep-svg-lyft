@@ -158,6 +158,7 @@ class BaseDataset(torch.utils.data.Dataset):
         
         available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
         
+        
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
                 "normal_agents_history":normal_agents_hist,
                 "agents_num":agents_num,
