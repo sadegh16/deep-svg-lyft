@@ -27,11 +27,12 @@ from argoverse.map_representation.map_api import ArgoverseMap
 
 import math
 
-
+MAX_CNTR_LINES=10
+SEQ_LEN=170
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,base_dir="/work/vita/sadegh/argo/argoverse-api/",
-                use_history=True, use_agents=True,use_scene=True):
+                use_history=True, use_agents=False,use_scene=True):
         """Initialize the Dataset.
 
         Args:
@@ -77,6 +78,23 @@ class BaseDataset(torch.utils.data.Dataset):
         """
         return self.data_size
 
+    def pad_cntr_lines(self,cntr_lines):
+        padded_cntr_lines=np.zeros((MAX_CNTR_LINES,2*SEQ_LEN))
+        available_cntr_size=np.zeros((MAX_CNTR_LINES,))
+        
+        for ln_idx in range(len(cntr_lines)):
+            flattend=cntr_lines[ln_idx].flatten()
+            if len(flattend)>2*SEQ_LEN:
+                valid_size=2*SEQ_LEN
+            else: 
+                valid_size=len(flattend)
+
+            available_cntr_size[ln_idx]=valid_size
+            padded_cntr_lines[ln_idx][:valid_size]=flattend[:valid_size]
+        return available_cntr_size,padded_cntr_lines
+        
+    
+    
     def __getitem__(self, idx: int
                     ) -> Tuple[torch.FloatTensor, Any, Dict[str, np.ndarray]]:
         """Get the element at the given index.
@@ -91,16 +109,16 @@ class BaseDataset(torch.utils.data.Dataset):
         
         
         helper=self.helpers[idx]
-#         hp=helper[0][:20]
-#         seq_to_find_lanes=np.concatenate([hp,[hp[-1]+i*(hp[-1]-hp[-2]) for i in range(1,10)]])
+        hp=helper[0][:20]
+#         hp=np.concatenate([hp,[hp[-1]+i*(hp[-1]-hp[-2]) for i in range(1,25)]])
         ############################# find lanes
         cnt_lines,img,cnt_lines_norm,world_to_image_space=self.mf.get_candidate_centerlines_for_trajectory(
-                        helper[0][:20],
+                        hp,
                         yaw_deg=helper[5],
                         city_name=helper[1][0],avm=self.avm,
             viz=True,
             seq_len = 60,
-            max_candidates=10,
+            max_candidates=MAX_CNTR_LINES,
             )
         #############################
         
@@ -137,6 +155,9 @@ class BaseDataset(torch.utils.data.Dataset):
             
         
         
+        
+        available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
+        
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
                 "normal_agents_history":normal_agents_hist,
                 "agents_num":agents_num,
@@ -150,6 +171,9 @@ class BaseDataset(torch.utils.data.Dataset):
                 "yaw_deg":helper[5],
                 "seq_id":helper[8],
                 "world_to_image_space":world_to_image_space,
+                "padded_cntr_lines":padded_cntr_lines,
+                "available_cntr_size":available_cntr_size,
+                
                }
     
     def get_helpers(self) -> Tuple[Any]:
