@@ -98,6 +98,7 @@ else:
     baseline_key = "none"
 
 
+NUM_gesses=6
 
 def my_collate(batch):
     "Puts each data field into a tensor with outer dimension batch size"
@@ -175,10 +176,13 @@ for dd in progress_bar:
         model_args = [dd["image"][arg].to(device) for arg in model_cfg.model_args]
         entery = [*model_args, {}, True]
         output,conf = model(entery)
-        output=output.reshape((dd["history_positions"].shape[0],30,2)).cpu()
+        output=output.reshape((dd["history_positions"].shape[0],NUM_gesses,30,2)).cpu()
         for i in range(output.shape[0]):
-            rot_output=transform_points(output[i], yaw_as_rotation33(ego_yaw[i]))+centroids[i]
-            forecasted_trajectories[seq_id[i]] = [rot_output]
+            forcasted_trajs=[]
+            for j in range(NUM_gesses):
+                rot_output=transform_points(output[i][j], yaw_as_rotation33(ego_yaw[i]))+centroids[i]
+                forcasted_trajs.append(rot_output)
+            forecasted_trajectories[seq_id[i]] = forcasted_trajs
 
 output_path = 'me_competition_files/'
 
