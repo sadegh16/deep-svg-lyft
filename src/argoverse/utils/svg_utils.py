@@ -119,7 +119,7 @@ class BaseDataset(torch.utils.data.Dataset):
             viz=True,
             seq_len = 60,
             max_candidates=MAX_CNTR_LINES,
-            end_point=hp[-1]+CV_END*(hp[-1]-hp[-2])
+#             end_point=hp[-1]+CV_END*(hp[-1]-hp[-2])
             )
         #############################
         
@@ -132,7 +132,7 @@ class BaseDataset(torch.utils.data.Dataset):
         path=[]
         history_agent_type= []
         history_agent= []
-        agents_num=0
+        agents_num=[]
         normal_agents_hist=[]
         
         if self.use_history or self.use_agents:
@@ -157,7 +157,7 @@ class BaseDataset(torch.utils.data.Dataset):
         
         
 #         print(path[0].shape)
-#         available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
+        available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
         
         
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
@@ -173,8 +173,8 @@ class BaseDataset(torch.utils.data.Dataset):
                 "yaw_deg":helper[5],
                 "seq_id":helper[8],
                 "world_to_image_space":world_to_image_space,
-#                 "padded_cntr_lines":padded_cntr_lines,
-#                 "available_cntr_size":available_cntr_size,
+                "padded_cntr_lines":padded_cntr_lines,
+                "available_cntr_size":available_cntr_size,
                 
                }
     
@@ -234,7 +234,7 @@ class BaseDataset(torch.utils.data.Dataset):
         frames = df.groupby("TRACK_ID")
 
         res=[]
-        normal_agents_hist=np.zeros((MAX_AGENTS_NUM,self.args.obs_len,2))
+        normal_agents_hist=np.full((MAX_AGENTS_NUM,2*self.args.obs_len),300)
 
 #         print(len(frames))
         # Plot all the tracks up till current frame
@@ -268,5 +268,5 @@ class BaseDataset(torch.utils.data.Dataset):
             if num_selected>=MAX_AGENTS_NUM:
                 break
 #         print(num_selected)
-        return res,normal_agents_hist,num_selected
+        return res,normal_agents_hist,np.array([40]*num_selected+[0]*(MAX_AGENTS_NUM-num_selected))
 
