@@ -10,6 +10,8 @@ from src.model_and_dataset.svg_dataset import SVGDataset
 from src.model_and_dataset.models.model_trajectory import ModelTrajectory
 from src.model_and_dataset.models.mlp_added_transformer import MLPTransformer
 from src.model_and_dataset.models.lstm_added_transformer import LSTMTransformer
+from src.model_and_dataset.models.shared_mlp_added_transformer import MLPSharedTransformer
+from src.model_and_dataset.models.conv1_added_transformer import ConvTransformer
 from src.model_and_dataset.utils import neg_multi_log_likelihood
 
 from deepsvg.utils import Stats, TrainVars, Timer
@@ -41,7 +43,7 @@ import pandas as pd
 import src.argoverse.utils.baseline_config as config
 import src.argoverse.utils.baseline_utils as baseline_utils
 from src.argoverse.utils.map_features_utils import MapFeaturesUtils
-from src.argoverse.utils.evaluation import get_ade
+from src.argoverse.utils.evaluation import get_ade,get_ade_6
 
 from src.argoverse.utils.raster_utils import RasterDataset
 
@@ -57,10 +59,7 @@ from src.argoverse.utils.raster_utils import RasterDataset
 
 def my_collate(batch):
     #     "Puts each data field into a tensor with outer dimension batch size"
-    # print(batch)
-    # batch = filter(lambda x:x is not None, batch)
     batch = list(filter(None, batch))
-    # print(batch)
     if len(batch) > 0:
         return default_collate(batch)
     else:
@@ -74,18 +73,24 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
         # set env variable for data
         model_cfg.print_params()
         dm = LocalDataManager(args.data_path)
+
         # get config
         rasterizer = build_rasterizer(data_cfg, dm)
 
         train_zarr = ChunkedDataset(dm.require(data_cfg["train_dataloader"]["split"])).open()
         val_zarr = ChunkedDataset(dm.require(data_cfg["val_dataloader"]["split"])).open()
 
+        if model_type == 39 or model_type == 1011:
+            use_agent = True
+        else:
+            use_agent = False
+
         train_dataset = SVGDataset(data_type = "lyft",model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
-                                   data_cfg=data_cfg, zarr_dataset = train_zarr, rasterizer = rasterizer)
+                                   data_cfg=data_cfg, zarr_dataset = train_zarr, rasterizer = rasterizer,use_agent=use_agent)
         val_dataset = SVGDataset(data_type = "lyft",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
-                                 data_cfg=data_cfg, zarr_dataset = val_zarr, rasterizer = rasterizer)
+                                 data_cfg=data_cfg, zarr_dataset = val_zarr, rasterizer = rasterizer,use_agent=use_agent)
 
         if model_cfg.train_idxs is not None:
             train_dataset = Subset(train_dataset, pd.read_csv(model_cfg.train_idxs)['idx'])
@@ -95,7 +100,10 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
         criterion = neg_multi_log_likelihood
         model = ModelTrajectory(model_cfg=model_cfg, data_config=data_cfg, modes=args.modes).to(device)
     elif args.data_type == "argo":
-
+        if model_type == 39 or model_type == 1011:
+            use_agents = True
+        else:
+            use_agents = False
         if args.use_map and args.use_social:
             baseline_key = "map_social"
         elif args.use_map:
@@ -112,22 +120,31 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
         # # Get PyTorch Dataset
         train_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
-                                   data_dict=data_dict, args=args, mode="train",model_type=model_type)
+                                   data_dict=data_dict, args=args, mode="train",model_type=model_type,use_agents=use_agents)
         x = train_dataset[0]
         x = train_dataset[2]
         x = train_dataset[3]
         val_dataset = SVGDataset(data_type = "argo",model_args=model_cfg.model_args,
                                  max_num_groups=model_cfg.max_num_groups,max_seq_len=model_cfg.max_seq_len,
-                                 data_dict=data_dict, args=args, mode="val",model_type=model_type)
+                                 data_dict=data_dict, args=args, mode="val",model_type=model_type,use_agents=use_agents)
         criterion= get_ade
         old_loss_criterion= nn.MSELoss()
+        if args.modes > 1:
+            criterion= neg_multi_log_likelihood
+            old_loss_criterion= get_ade_6
         ###LSTM,MLP,MLP_Before_Residual,Encoder_One_MLP,Encoder_One_Transformer
         if model_type == 2:
             model = LSTMTransformer(model_config=model_cfg, data_config= None,
                                     modes=args.modes,history_num = 20,future_len=30).to(device)
-        elif model_type == 3:
-            model = MLPTransformer(model_config=model_cfg, data_config= None,
+        elif model_type == 3 or model_type == 35 or model_type == 345 or model_type == 39:
+            model = MLPTransformer(model_config=model_cfg,model_type=model_type, data_config= None,
                                    modes=args.modes,history_num = 20,future_len=30).to(device)
+        elif model_type == 1011:
+            model = ConvTransformer(model_config=model_cfg,model_type=model_type, data_config= None,
+                                    modes=args.modes,history_num = 20,future_len=30).to(device)
+        elif model_type == 85:
+            model = MLPSharedTransformer(model_config=model_cfg,model_type=model_type, data_config= None,
+                                         modes=args.modes,history_num = 20,future_len=30).to(device)
         else:
             model = ModelTrajectory(model_cfg=model_cfg, data_config= None,model_type=model_type,
                                     modes=args.modes,future_len=30).to(device)
@@ -155,7 +172,6 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
     checkpoint_dir = os.path.join(log_dir, "models", model_name, experiment_name)
     print("checkpoint_dir",checkpoint_dir)
 
-    # model_cfg.set_train_vars(train_vars, train_dataloader)
 
     # Optimizer, lr & warmup schedulers
     optimizers = model_cfg.make_optimizers(model)
@@ -164,21 +180,7 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
 
     loss_fns = [l.to(device) for l in model_cfg.make_losses()]
 
-    #     if not resume == " ":
-    #         ckpt_exists = utils.load_ckpt_list(checkpoint_dir, model, None, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
 
-    #     if not resume == " " and ckpt_exists:
-    #         print(f"Resuming model at epoch {stats.epoch+1}")
-    #         stats.num_steps = model_cfg.num_epochs * len(train_dataloader)
-    #     if True:
-    #         # Run a single forward pass on the single-device model_and_dataset for initialization of some modules
-    #         single_foward_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True,
-    #                                               num_workers=model_cfg.loader_num_workers , collate_fn=my_collate)
-    #         data = next(iter(single_foward_dataloader))
-    #         if data is not None:
-    #             model_args, params_dict = [data['image'][arg].to(device) for arg in model_cfg.model_args], model_cfg.get_params(0, 0)
-    #             entery = [*model_args,{},True]
-    #             out = model(entery)
     if torch.cuda.device_count() > 0:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
     model = nn.DataParallel(model)
@@ -203,20 +205,33 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
 
             for i, (loss_fn, optimizer, scheduler_lr, scheduler_warmup, optimizer_start) in enumerate(zip(loss_fns, optimizers, scheduler_lrs, scheduler_warmups, model_cfg.optimizer_starts), 1):
                 optimizer.zero_grad()
+
                 history=data["history_positions"].to(device)
                 if model_type == 2 or model_type == 3:
                     entery = [[*model_args, {}, True],history]
+                elif model_type == 35 or model_type == 345 or model_type == 85:
+                    entery = [[*model_args,history, {}, True],history]
                 elif model_type == 1:
                     entery = [*model_args, params_dict, True]
-                elif model_type == 4 or model_type == 5:
+                elif model_type == 4 or model_type == 5 or model_type == 7:
                     entery = [*model_args, history, params_dict, True]
                 elif model_type == 6:
                     entery = [*model_args,data['history_svg']['commands'],data['history_svg']['args'], params_dict, True]
+                elif model_type == 39 or model_type == 1011:
+                    agents=data["normal_agents_history"].to(device)
+                    agents_availabilty=data["agents_availabilty"].to(device)
+                    entery = [[*model_args,history,agents,agents_availabilty, {}, True],history]
+
                 output,conf = model(entery)
+                print(output.shape,conf.shape)
                 loss_dict = {}
-                loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
-                loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
-                                                           output.reshape(data['target_positions'].shape),).mean()
+                if args.modes == 1:
+                    loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
+                    loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
+                                                               output.reshape(data['target_positions'].shape),).mean()
+                else:
+                    loss_dict['loss'] = criterion(data['target_positions'].to(device),output,conf).mean()
+                    loss_dict['min_ade'] = old_loss_criterion(output,data['target_positions'].to(device)).mean()
 
 
                 if step >= optimizer_start:
@@ -253,9 +268,6 @@ def train(model_cfg:_Config, args, model_name, experiment_name="",model_type=0, 
                 validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,step,
                            old_loss_criterion,model_type)
 
-#             if step % model_cfg.ckpt_every == 0:
-#                 utils.save_ckpt_list(checkpoint_dir, model, model_cfg, optimizers, scheduler_lrs, scheduler_warmups, stats, train_vars)
-#                 print("save checkpoint")
 
 
 
@@ -281,23 +293,33 @@ def validation(val_dataloader,model,model_cfg,device, criterion, epoch,stats,sum
                 stats.write_tensorboard(summary_writer, "val")
                 summary_writer.flush()
                 return
+
             history=data["history_positions"].to(device)
             if model_type == 2 or model_type == 3:
                 entery = [[*model_args, {}, True],history]
+            elif model_type == 35 or model_type == 345 or model_type == 85:
+                entery = [[*model_args,history, {}, True],history]
             elif model_type == 1:
                 entery = [*model_args, params_dict, True]
-            elif model_type == 4 or model_type == 5:
+            elif model_type == 4 or model_type == 5 or model_type == 7:
                 entery = [*model_args, history, params_dict, True]
             elif model_type == 6:
                 entery = [*model_args,data['history_svg']['commands'],data['history_svg']['args'], params_dict, True]
-            #         entery = [*model_args, params_dict, True]
-            #             entery = [[*model_args, {}, True],history]
-            #             entery = [*model_args, history, {}, True]
+            elif model_type == 39 or model_type == 1011:
+                agents=data["normal_agents_history"].to(device)
+                agents_availabilty=data["agents_availabilty"].to(device)
+                entery = [[*model_args,history,agents,agents_availabilty, {}, True],history]
+
             output,conf = model(entery)
             loss_dict = {}
-            loss_dict['loss'] = criterion(data['target_positions'].to(device), output.reshape(data['target_positions'].shape),).mean()
-            loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
-                                                       output.reshape(data['target_positions'].shape),).mean()
+            if args.modes == 1:
+                loss_dict['loss'] = criterion(data['target_positions'].to(device),
+                                              output.reshape(data['target_positions'].shape),).mean()
+                loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
+                                                           output.reshape(data['target_positions'].shape),).mean()
+            else:
+                loss_dict['loss'] = criterion(data['target_positions'].to(device),output,conf).mean()
+                loss_dict['min_ade'] = old_loss_criterion(output,data['target_positions'].to(device)).mean()
 
             stats.update_stats_to_print("val", loss_dict)
 
@@ -387,9 +409,16 @@ if __name__ == "__main__":
         cfg.val_idxs = args.val_idxs
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
-    model_type=3 ###Normal=1 ,LSTM=2 ,MLP=3,MLP_Before_Residual=4 ,Encoder_One_MLP=5 ,Encoder_One_Transformer=6
-    train(model_cfg=cfg, args=args,
-          model_name="concat-both-MLP-and_Encoder_One_MLP",model_type=model_type, experiment_name="test",
-          log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)
 
+    ### Normal=1, LSTM=2, MLP=3, MLP_Before_Residual=4, Encoder_One_MLP=5
+    ### Encoder_One_Transformer=6, Encoder_One_LSTM=7, Shared_mlp=8, added_agent_with_Encoder_One_MLP=9,
+    ### Conv=10, added_agent_with_Encoder_One_Conv=11
+
+    model_type=1011
+    #     train(model_cfg=cfg, args=args,
+    #           model_name="mlp_Encoder_One_MLP_shared_V2",model_type=model_type, experiment_name="test",
+    #           log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)
+    train(model_cfg=cfg, args=args,
+          model_name="conv_Encoder_One_conv_added_agent",model_type=model_type, experiment_name="test",
+          log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)
 

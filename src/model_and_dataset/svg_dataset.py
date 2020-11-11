@@ -14,6 +14,7 @@ from typing import List, Union
 import pandas as pd
 import os
 import pickle
+import numpy as np
 
 from src.argoverse.utils.svg_utils import BaseDataset
 
@@ -26,7 +27,7 @@ class SVGDataset(torch.utils.data.Dataset):
                  perturbation=None, agents_mask=None,
                  min_frame_history=10, min_frame_future=1,
                  data_dict = None, args=None, mode=None,
-                 max_total_len=None, PAD_VAL=-1,csv_path=None,model_type=None):
+                 max_total_len=None, PAD_VAL=-1,csv_path=None,model_type=None,use_agents=False):
 
         super().__init__()
         self.model_type = model_type
@@ -43,11 +44,12 @@ class SVGDataset(torch.utils.data.Dataset):
         elif data_type == "argo":
             self.svg = True
             self.svg_cmds = True
-            self.data = BaseDataset(data_dict, args, mode)
+            self.data = BaseDataset(data_dict, args, mode,use_agents=use_agents)
 
         self.MAX_NUM_GROUPS = max_num_groups
         self.MAX_SEQ_LEN = max_seq_len
         self.MAX_TOTAL_LEN = max_total_len
+        self.MAX_NUM_AGENTS = 15
 
         if max_total_len is None:
             self.MAX_TOTAL_LEN = max_num_groups * max_seq_len
@@ -132,6 +134,14 @@ class SVGDataset(torch.utils.data.Dataset):
                 tens_scene = apply_colors(tens_scene, item['path_type'])
             if len(item['history_agent_type'])!=0:
                 tens_path = apply_colors(tens_path, item['history_agent_type'])
+            if self.model_type == 39 or self.model_type == 1011:
+                MAX_NUM_AGENTS = 10
+                #                 print(item["normal_agents_history"],item['agents_num'])
+                item['agents_availabilty']=np.ones((item['agents_num']),dtype=bool)
+                if item['agents_availabilty'].shape[0] < MAX_NUM_AGENTS:
+                    item['agents_availabilty'] = np.concatenate((item['agents_availabilty'],
+                                                                 np.zeros((MAX_NUM_AGENTS-item['agents_num']),dtype=bool)))
+
             del item['path']
             del item['path_type']
             del item['history_agent']

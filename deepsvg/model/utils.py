@@ -43,7 +43,7 @@ def _get_group_mask(commands, seq_dim=0):
         return group_mask
 
 
-def _get_visibility_mask(commands, seq_dim=0,modified=False):
+def _get_visibility_mask(commands, seq_dim=0,modified=False, agents_validity=None):
     """
     Args:
         commands: Shape [S, ...]
@@ -57,12 +57,10 @@ def _get_visibility_mask(commands, seq_dim=0,modified=False):
         visibility_mask = (commands == SVGTensor.COMMANDS_SIMPLIFIED.index("EOS")).sum(dim=seq_dim) < S - 1
         # print("visibility_mask",visibility_mask.shape)
         if modified == True:
-            #             print(visibility_mask.shape[1])
             l =torch.ones((1,visibility_mask.shape[1]),dtype=bool)
-            # print("my tensor",l.unsqueeze(0))
-            # print(l.shape)
-            #             print("visibility_mask",visibility_mask.shape,l.unsqueeze(0).shape,commands.shape)
             visibility_mask = torch.cat((visibility_mask,l.to(device='cuda')))
+            if agents_validity is not None:
+                visibility_mask = torch.cat((visibility_mask,agents_validity.permute(1,0)))
         # print("visibility_mask",visibility_mask.shape)
 
         if seq_dim == 0:
@@ -70,17 +68,20 @@ def _get_visibility_mask(commands, seq_dim=0,modified=False):
         return visibility_mask
 
 
-def _get_key_visibility_mask(commands, seq_dim=0,modified=False):
+def _get_key_visibility_mask(commands, seq_dim=0,modified=False, agents_validity=None):
     S = commands.size(seq_dim)
     with torch.no_grad():
         key_visibility_mask = (commands == SVGTensor.COMMANDS_SIMPLIFIED.index("EOS")).sum(dim=seq_dim) >= S - 1
-        # print("key_visibility_mask",key_visibility_mask.shape)
+        #         print("key_visibility_mask",key_visibility_mask.shape)
         if modified == True:
             l =torch.zeros((1,key_visibility_mask.shape[1]),dtype=bool)
-            #             print(l)
-            #             print("my second",l.unsqueeze(0))
-            #             print("visibility_mask",key_visibility_mask.shape,l.unsqueeze(0).shape,commands.shape)
             key_visibility_mask = torch.cat((key_visibility_mask,l.to(device='cuda')))
+            if agents_validity is not None:
+                for i in range(agents_validity.shape[0]):
+                    for j in range(agents_validity.shape[1]):
+                        agents_validity[i][j] = not(agents_validity[i][j])
+                key_visibility_mask = torch.cat((key_visibility_mask,agents_validity.permute(1,0)))
+        #         print("key_visibility_mask",key_visibility_mask.shape)
         if seq_dim == 0:
             return key_visibility_mask.transpose(0, 1)
         return key_visibility_mask

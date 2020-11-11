@@ -5,6 +5,7 @@ class RasterModel(torch.nn.Module):
     def __init__(self, config: dict = None, future_len=None, in_channels=None, modes: int = 1):
         super().__init__()
         self.modes = modes
+        print("self.modes",self.modes)
         self.in_channels = in_channels
         if self.in_channels is None and config is not None:
             self.in_channels = (config["model_params"]["history_num_frames"] + 1) * 2 + 3
@@ -17,6 +18,7 @@ class RasterModel(torch.nn.Module):
             self.future_len = config["model_params"]["future_num_frames"] // config["model_params"]["future_step_size"]
         self.num_preds = self.modes * 2 * self.future_len
         self.out_dim = self.num_preds + (self.modes if self.modes != 1 else 0)
+        print("self.out_dim",self.out_dim)
 
     def _forward(self, x):
         return self.model(x)
@@ -36,3 +38,4 @@ class RasterModel(torch.nn.Module):
             conf = torch.softmax(conf, dim=1)
             return pred, conf
         return res.view(bs, 1, self.future_len, 2), res.new_ones((bs, 1))
+

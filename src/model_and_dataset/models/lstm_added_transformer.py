@@ -6,8 +6,8 @@ from .template import RasterModel
 class LSTMTransformer(RasterModel):
     def __init__(self,model_config,modes,data_config=None,future_len=None, history_num=None):
         super().__init__(config=data_config, modes=modes, future_len=future_len, in_channels=history_num)
-        print("history_num",history_num)
-        print("out_dim",self.out_dim)
+        #         print("history_num",history_num)
+        #         print("out_dim",self.out_dim)
         self.transformer = ModelTrajectory(model_cfg=model_config)
         self.history_LSTM= torch.nn.Sequential(torch.nn.LSTM(history_num, 32),)
         self.linear = torch.nn.Sequential(torch.nn.Linear(64+128, 128),
