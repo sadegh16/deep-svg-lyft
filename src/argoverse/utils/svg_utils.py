@@ -262,7 +262,7 @@ class BaseDataset(torch.utils.data.Dataset):
 #             print(cropped_vector.shape)
             
             if len(cropped_vector)>1:
-                normal_agents_hist[num_selected]=traj
+                normal_agents_hist[num_selected]=traj.flatten()
                 res.append(cropped_vector)
                 num_selected+=1 
             if num_selected>=MAX_AGENTS_NUM:
