@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Tuple
 from .transform import *
-import math 
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import LineString, Point, Polygon
@@ -142,10 +142,10 @@ class MapFeaturesUtils:
         test_centerlines = aligned_centerlines
         if num_diverse_centerlines > 0:
             probabilities = ([
-                float(score + 1) / (sum(diverse_scores) + len(diverse_scores))
-                for score in diverse_scores
-            ] if sum(diverse_scores) > 0 else [1.0 / len(diverse_scores)] *
-                             len(diverse_scores))
+                                 float(score + 1) / (sum(diverse_scores) + len(diverse_scores))
+                                 for score in diverse_scores
+                             ] if sum(diverse_scores) > 0 else [1.0 / len(diverse_scores)] *
+                                                               len(diverse_scores))
             diverse_centerlines_idx = np.random.choice(
                 range(len(probabilities)),
                 num_diverse_centerlines,
@@ -226,7 +226,7 @@ class MapFeaturesUtils:
             for past_lane_seq in candidates_past:
                 for future_lane_seq in candidates_future:
                     assert (
-                        past_lane_seq[-1] == future_lane_seq[0]
+                            past_lane_seq[-1] == future_lane_seq[0]
                     ), "Incorrect DFS for candidate lanes past and future"
                     obs_pred_lanes.append(past_lane_seq + future_lane_seq[1:])
 
@@ -238,7 +238,7 @@ class MapFeaturesUtils:
             obs_pred_lanes, xy, city_name, avm)
 
         # If the best centerline is not along the direction of travel, re-sort
-        
+
         if mode == "test":
             candidate_centerlines = self.get_heuristic_centerlines_for_test_set(
                 obs_pred_lanes, xy, city_name, avm, max_candidates, scores)
@@ -247,88 +247,88 @@ class MapFeaturesUtils:
                 [obs_pred_lanes[0]], city_name)
 
         centroid=xy[19]
-#         print("centroid is  ",centroid)
-#         print("yaw_deg is ",yaw_deg)
-        
+        #         print("centroid is  ",centroid)
+        #         print("yaw_deg is ",yaw_deg)
+
         raster_size=(224,224)
         ego_yaw=-math.pi*yaw_deg/180
-#         print("ego_yaw is ",ego_yaw)
-        
+        #         print("ego_yaw is ",ego_yaw)
+
         world_to_image_space = world_to_image_pixels_matrix(
-        raster_size,
-        (0.6,0.6),
-        ego_translation_m=centroid,
-        ego_yaw_rad=ego_yaw,
-        ego_center_in_image_ratio=np.array([0.125,0.5]),
+            raster_size,
+            (0.6,0.6),
+            ego_translation_m=centroid,
+            ego_yaw_rad=ego_yaw,
+            ego_center_in_image_ratio=np.array([0.125,0.5]),
 
         )
-        
-#         fig=plt.figure(figsize=(15, 15))
+
+        #         fig=plt.figure(figsize=(15, 15))
         candidate_centerlines_normalized=[]
 
         if viz:
             img = 255 * np.ones(shape=(raster_size[0], raster_size[1], 3), dtype=np.uint8)
 
-#             plt.figure(0, figsize=(8, 7))
+            #             plt.figure(0, figsize=(8, 7))
             for centerline_coords in candidate_centerlines:
                 cnt_line = transform_points(centerline_coords, world_to_image_space)
                 cv2.polylines(img, [cv2_subpixel(cnt_line)], False, (0, 0, 0), lineType=cv2.LINE_AA,shift=CV2_SHIFT )
                 cropped_vector=crop_tensor(cnt_line, raster_size)
-#                 print("*******")
-#                 print("image spcace cntr-line")
+                #                 print("*******")
+                #                 print("image spcace cntr-line")
                 if len(cropped_vector)>1:
                     candidate_centerlines_normalized.append(cropped_vector)
-#                     print("cropped cntr-line",cropped_vector)
-#                     break
-                 
-                    
-                
+            #                     print("cropped cntr-line",cropped_vector)
+            #                     break
+
+
+
             img=img.astype(np.float32) / 255
-            
-#             raster_img=(img * 255).astype(np.uint8)
-#             fig.add_subplot(1, 4, 1)
-#             plt.imshow(raster_img[::-1])
-#             plt.show()
-        
-        
-#         fig.add_subplot(1, 4, 2)
-        
-#         if viz:
-#             plt.figure(0, figsize=(8, 7))
-#             for centerline_coords in candidate_centerlines:
-#                 visualize_centerline(centerline_coords)
-#             plt.plot(
-#                 xy[:, 0],
-#                 xy[:, 1],
-#                 "-",
-#                 color="#d33e4c",
-#                 alpha=1,
-#                 linewidth=3,
-#                 zorder=15,
-#             )
 
-#             final_x = xy[-1, 0]
-#             final_y = xy[-1, 1]
+        #             raster_img=(img * 255).astype(np.uint8)
+        #             fig.add_subplot(1, 4, 1)
+        #             plt.imshow(raster_img[::-1])
+        #             plt.show()
 
-#             plt.plot(
-#                 final_x,
-#                 final_y,
-#                 "o",
-#                 color="#d33e4c",
-#                 alpha=1,
-#                 markersize=10,
-#                 zorder=15,
-#             )
-#             plt.xlabel("Map X")
-#             plt.ylabel("Map Y")
-#             plt.axis("off")
-#             plt.title(f"Number of candidates = {len(candidate_centerlines)}")
-#             plt.show()
 
-        
-        
-        
-        
+        #         fig.add_subplot(1, 4, 2)
+
+        #         if viz:
+        #             plt.figure(0, figsize=(8, 7))
+        #             for centerline_coords in candidate_centerlines:
+        #                 visualize_centerline(centerline_coords)
+        #             plt.plot(
+        #                 xy[:, 0],
+        #                 xy[:, 1],
+        #                 "-",
+        #                 color="#d33e4c",
+        #                 alpha=1,
+        #                 linewidth=3,
+        #                 zorder=15,
+        #             )
+
+        #             final_x = xy[-1, 0]
+        #             final_y = xy[-1, 1]
+
+        #             plt.plot(
+        #                 final_x,
+        #                 final_y,
+        #                 "o",
+        #                 color="#d33e4c",
+        #                 alpha=1,
+        #                 markersize=10,
+        #                 zorder=15,
+        #             )
+        #             plt.xlabel("Map X")
+        #             plt.ylabel("Map Y")
+        #             plt.axis("off")
+        #             plt.title(f"Number of candidates = {len(candidate_centerlines)}")
+        #             plt.show()
+
+
+
+
+
         return candidate_centerlines,img,candidate_centerlines_normalized,world_to_image_space
 
     def compute_map_features(
@@ -361,8 +361,8 @@ class MapFeaturesUtils:
                                    ]].astype("float")
         agent_track_obs = agent_track[:obs_len]
         agent_xy_obs = agent_track_obs[:, [
-            raw_data_format["X"], raw_data_format["Y"]
-        ]].astype("float")
+                                              raw_data_format["X"], raw_data_format["Y"]
+                                          ]].astype("float")
 
         # Get API for Argo Dataset map
         avm = ArgoverseMap()
@@ -416,3 +416,4 @@ class MapFeaturesUtils:
         }
 
         return oracle_nt_dist, map_feature_helpers
+

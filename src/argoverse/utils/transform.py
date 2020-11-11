@@ -63,11 +63,11 @@ def yaw_as_rotation33(yaw: float) -> np.ndarray:
 
 
 def world_to_image_pixels_matrix(
-    image_shape: Tuple[int, int],
-    pixel_size_m: np.ndarray,
-    ego_translation_m: np.ndarray,
-    ego_yaw_rad: Optional[float] = None,
-    ego_center_in_image_ratio: Optional[np.ndarray] = None,
+        image_shape: Tuple[int, int],
+        pixel_size_m: np.ndarray,
+        ego_translation_m: np.ndarray,
+        ego_yaw_rad: Optional[float] = None,
+        ego_center_in_image_ratio: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Constructs a transformation matrix from world coordinates to image pixels.

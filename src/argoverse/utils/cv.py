@@ -103,12 +103,12 @@ def forecast_and_save_trajectory(obs_trajectory: np.ndarray,
     """
     vx, vy = get_mean_velocity(obs_trajectory)
     pred_trajectory = predict(obs_trajectory, vx, vy, args)
-    
-    
+
+
     loss = nn.MSELoss()
     output = loss(pred_trajectory, obs_trajectory)
     print(output)
-    
+
     forecasted_trajectories = {}
 
     for i in range(pred_trajectory.shape[0]):

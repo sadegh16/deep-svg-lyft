@@ -37,7 +37,7 @@ LSTM_HELPER_DICT_IDX = {
 
 BASELINE_INPUT_FEATURES = {
     "social":
-    ["X", "Y", "MIN_DISTANCE_FRONT", "MIN_DISTANCE_BACK", "NUM_NEIGHBORS"],
+        ["X", "Y", "MIN_DISTANCE_FRONT", "MIN_DISTANCE_BACK", "NUM_NEIGHBORS"],
     "map": ["OFFSET_FROM_CENTERLINE", "DISTANCE_ALONG_CENTERLINE"],
     "map_social": [
         "OFFSET_FROM_CENTERLINE",
@@ -77,3 +77,7 @@ EXIST_THRESHOLD = (
 DEFAULT_MIN_DIST_FRONT_AND_BACK = 100.0  # Default front/back distance
 NEARBY_DISTANCE_THRESHOLD = 50.0  # Distance threshold to call a track as neighbor
 FRONT_OR_BACK_OFFSET_THRESHOLD = 5.0  # Offset threshold from direction of travel
+
+
+MAX_AGENTS_NUM=10
+MIN_AGENTS_DIST=40

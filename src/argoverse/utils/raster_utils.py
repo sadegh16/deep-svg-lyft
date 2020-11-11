@@ -67,14 +67,14 @@ class RasterDataset(Dataset):
         # Get helpers
         self.helpers = self.get_helpers()
         self.helpers = list(zip(*self.helpers))
-        
-        
-        
+
+
+
         from argoverse.map_representation.map_api import ArgoverseMap
 
         self.avm = ArgoverseMap()
         self.mf=MapFeaturesUtils()
-        
+
 
     def __len__(self):
         """Get length of dataset.
@@ -98,15 +98,15 @@ class RasterDataset(Dataset):
         """
         helper=self.helpers[idx]
         cnt_lines,img,cnt_lines_norm=self.mf.get_candidate_centerlines_for_trajectory(
-                        helper[0] if self.mode != "test"  else  helper[0][:20],
-                        yaw_deg=helper[5],centroid=helper[0][0],
-                        city_name=helper[1][0],avm=self.avm,
+            helper[0] if self.mode != "test"  else  helper[0][:20],
+            yaw_deg=helper[5],centroid=helper[0][0],
+            city_name=helper[1][0],avm=self.avm,
             viz=True,
             seq_len = 80,
             max_candidates=10,
-            )
-        
-        
+        )
+
+
         res = torch.cat([linear_path_to_tensor(path, -1) for path in cnt_lines_norm], 0)
 
         return (
@@ -117,7 +117,7 @@ class RasterDataset(Dataset):
             cnt_lines,
             cnt_lines_norm,
             res,
-            
+
         )
 
     def get_helpers(self) -> Tuple[Any]:
@@ -131,7 +131,7 @@ class RasterDataset(Dataset):
         """
         helper_df = self.data_dict[f"{self.mode}_helpers"]
         candidate_centerlines = helper_df["CANDIDATE_CENTERLINES"].values
-#         print("ss",candidate_centerlines)
+        #         print("ss",candidate_centerlines)
         candidate_nt_distances = helper_df["CANDIDATE_NT_DISTANCES"].values
         xcoord = np.stack(helper_df["FEATURES"].values
                           )[:, :, FEATURE_FORMAT["X"]].astype("float")
@@ -163,3 +163,4 @@ class RasterDataset(Dataset):
             helpers[v] = locals()[k.lower()]
 
         return tuple(helpers)
+

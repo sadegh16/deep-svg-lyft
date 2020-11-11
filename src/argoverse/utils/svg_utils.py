@@ -31,14 +31,12 @@ import math
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,base_dir="/work/vita/sadegh/argo/argoverse-api/",
-                use_history=True, use_agents=False ,use_scene=True):
+                 use_history=True, use_agents=True,use_scene=True):
         """Initialize the Dataset.
-
         Args:
             data_dict: Dict containing all the data
             args: Arguments passed to the baseline code
             mode: train/val/test mode
-
         """
         self.data_dict = data_dict
         self.args = args
@@ -55,66 +53,62 @@ class BaseDataset(torch.utils.data.Dataset):
         # Get helpers
         self.helpers = self.get_helpers()
         self.helpers = list(zip(*self.helpers))
-        
+
         middle_dir=mode if mode!="test" else  "test_obs"
         self.root_dir=base_dir+middle_dir+"/data"
-        
+
 
         ##set root_dir to the correct path to your dataset folder
         self.afl = ArgoverseForecastingLoader(self.root_dir)
-        
+
 
         self.avm = ArgoverseMap()
         self.mf=MapFeaturesUtils()
-        
+
 
     def __len__(self):
         """Get length of dataset.
-
         Returns:
             Length of dataset
-
         """
         return self.data_size
 
     def __getitem__(self, idx: int
                     ) -> Tuple[torch.FloatTensor, Any, Dict[str, np.ndarray]]:
         """Get the element at the given index.
-
         Args:
             idx: Query index
-
         Returns:
-            A list containing input Tensor, Output Tensor (Empty if test) and viz helpers. 
-
+            A list containing input Tensor, Output Tensor (Empty if test) and viz helpers.
         """
-        
-        
+
+
         helper=self.helpers[idx]
-        
+        #         hp=helper[0][:20]
+        #         seq_to_find_lanes=np.concatenate([hp,[hp[-1]+i*(hp[-1]-hp[-2]) for i in range(1,10)]])
         ############################# find lanes
         cnt_lines,img,cnt_lines_norm,world_to_image_space=self.mf.get_candidate_centerlines_for_trajectory(
-                        helper[0][:20],
-                        yaw_deg=helper[5],
-                        city_name=helper[1][0],avm=self.avm,
+            helper[0][:20],
+            yaw_deg=helper[5],
+            city_name=helper[1][0],avm=self.avm,
             viz=True,
             seq_len = 60,
             max_candidates=10,
-            )
+        )
         #############################
-        
-        # normalize history    
+
+        # normalize history
         traj= helper[0] if self.mode!="test" else helper[0][:20]
         traj = transform_points(traj-helper[0][19], yaw_as_rotation33(math.pi*helper[5]/180))
 
-    
+
         path_type=[]
         path=[]
         history_agent_type= []
         history_agent= []
-        
-        
-        
+        agents_num=0
+        normal_agents_hist=[]
+
         if self.use_history or self.use_agents:
             if self.use_history:
                 ego_world_history=helper[0][:20]
@@ -123,20 +117,22 @@ class BaseDataset(torch.utils.data.Dataset):
                 history_agent_type+=[1]
                 history_agent+=[history_xy]
             if self.use_agents:
-                agents_history= self.get_agents(idx,world_to_image_space,helper[0][19],)
+                agents_history,normal_agents_hist,agents_num = self.get_agents(idx,world_to_image_space,helper[0][19],helper[5])
                 history_agent_type+=[2]*len(agents_history)
                 history_agent+=agents_history
-            
+
             history_agent = torch.cat([linear_path_to_tensor(lane, -1) for lane in history_agent], 0)
 
-            
+
         if self.use_scene:
             path_type=[0]*len(cnt_lines_norm)
             path=torch.cat([linear_path_to_tensor(lane, -1) for lane in cnt_lines_norm], 0)
-            
-        
-        
+
+
+
         return {"history_positions": torch.FloatTensor(traj[:self.args.obs_len]),
+                "normal_agents_history":normal_agents_hist,
+                "agents_num":agents_num,
                 "target_positions": torch.empty(1) if self.mode == "test" else torch.FloatTensor(traj[self.args.obs_len:]),
                 "path":path,
                 "path_type":path_type,
@@ -147,20 +143,17 @@ class BaseDataset(torch.utils.data.Dataset):
                 "yaw_deg":helper[5],
                 "seq_id":helper[8],
                 "world_to_image_space":world_to_image_space,
-               }
-    
+                }
+
     def get_helpers(self) -> Tuple[Any]:
         """Get helpers for running baselines.
-
         Returns:
             helpers: Tuple in the format specified by LSTM_HELPER_DICT_IDX
-
         Note: We need a tuple because DataLoader needs to index across all these helpers simultaneously.
-
         """
         helper_df = self.data_dict[f"{self.mode}_helpers"]
         candidate_centerlines = helper_df["CANDIDATE_CENTERLINES"].values
-#         print("ss",candidate_centerlines)
+        #         print("ss",candidate_centerlines)
         candidate_nt_distances = helper_df["CANDIDATE_NT_DISTANCES"].values
         xcoord = np.stack(helper_df["FEATURES"].values
                           )[:, :, FEATURE_FORMAT["X"]].astype("float")
@@ -193,40 +186,49 @@ class BaseDataset(torch.utils.data.Dataset):
 
         return tuple(helpers)
 
-    def get_agents(self,index,world_to_image_space,centroid) :
+    def get_agents(self,index,world_to_image_space,centroid,yaw_deg) :
         """Get agents
-
         """
         helper_df = self.data_dict[f"{self.mode}_helpers"]
         seq_id=helper_df.iloc[index,0]
         seq_path = f"{self.root_dir}/{seq_id}.csv"
-#         print(seq_path)
+        #         print(seq_path)
         df=self.afl.get(seq_path).seq_df
         frames = df.groupby("TRACK_ID")
 
         res=[]
-#         print(len(frames))
+        normal_agents_hist=np.full((MAX_AGENTS_NUM,self.args.obs_len,2),300)
+
+        #         print(len(frames))
         # Plot all the tracks up till current frame
         num_selected=0
+
+        rotation_mat=yaw_as_rotation33(math.pi*yaw_deg/180)
         for group_name, group_data in frames:
             object_type = group_data["OBJECT_TYPE"].values[0]
-            
-            
-#             print(group_data[["X","Y"]].values.shape).
-            cor_xy = group_data[["X","Y"]].to_numpy()
-            cor_xy=cor_xy[:self.args.obs_len]
-            if np.linalg.norm(centroid-cor_xy[-1])>40:
-                continue
-            cor_xy = transform_points(cor_xy, world_to_image_space)
-#             print(cor_xy.shape)
-            cropped_vector=crop_tensor(cor_xy, (224,224))
-#             print(cropped_vector.shape)
-            
-            if len(cropped_vector)>1:
-                res.append(cropped_vector)
-                num_selected+=1 
-            if num_selected>=15:
-                break
-#         print(num_selected)
-        return res
 
+
+            #             print(group_data[["X","Y"]].values.shape).
+            cor_xy = group_data[["X","Y"]].to_numpy()
+            if cor_xy.shape[0]<20:
+                continue
+
+            cor_xy=cor_xy[:self.args.obs_len]
+            if np.linalg.norm(centroid-cor_xy[-1])>MIN_AGENTS_DIST:
+                continue
+
+
+            traj = transform_points(cor_xy-centroid,rotation_mat )
+            cor_xy = transform_points(cor_xy, world_to_image_space)
+            #             print(cor_xy.shape)
+            cropped_vector=crop_tensor(cor_xy, (224,224))
+            #             print(cropped_vector.shape)
+
+            if len(cropped_vector)>1:
+                normal_agents_hist[num_selected]=traj
+                res.append(cropped_vector)
+                num_selected+=1
+            if num_selected>=MAX_AGENTS_NUM:
+                break
+        #         print(num_selected)
+        return res,normal_agents_hist,num_selected
