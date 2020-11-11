@@ -167,7 +167,7 @@ class Cheese(torch.nn.Module, ABC):
         if self.history:
             hist_idx = idx
             idx += 1
-            hist = history_positions  # batch['history_positions'] N, HIST_LEN, 2
+            hist = history_positions.reshape(history_positions.shape[0], -1)  # batch['history_positions'] N, HIST_LEN, 2
             # print('hist', hist.shape)
             label = self.label(torch.LongTensor([item_id]).to(hist.device))
             # print(label.shape, 'label')
