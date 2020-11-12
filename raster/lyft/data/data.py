@@ -1,34 +1,21 @@
-from typing import Dict
-from tempfile import gettempdir
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
-from torch import nn, optim
-from torch.utils.data import DataLoader
-from torchvision.models.resnet import resnet18,resnet34,resnet50
-from tqdm import tqdm
-import l5kit
-from l5kit.configs import load_config_data
-from l5kit.data import LocalDataManager, ChunkedDataset
-from l5kit.dataset import AgentDataset, EgoDataset
+from l5kit.dataset import AgentDataset as agent_dataset
+from l5kit.rasterization import build_rasterizer as _build_rasterizer
 
-from l5kit.rasterization import build_rasterizer,my_build_rasterizer
-from l5kit.evaluation import write_pred_csv, compute_metrics_csv, read_gt_csv, create_chopped_dataset
-from l5kit.evaluation.chop_dataset import MIN_FUTURE_STEPS
-from l5kit.evaluation.metrics import neg_multi_log_likelihood, time_displace
-from l5kit.geometry import transform_points,yaw_as_rotation33
-from l5kit.visualization import PREDICTED_POINTS_COLOR, TARGET_POINTS_COLOR, draw_trajectory
-from prettytable import PrettyTable
-from pathlib import Path
-from torch import Tensor
-import pandas as pd
+from l5kit.rasterization import SemanticRasterizer, SemBoxRasterizer, BoxRasterizer
+from .rasterizer import (
+    render_semantic_map, rasterize_semantic, rasterize_sem_box, get_frame, rasterize_box)
 
-import os
+import functools
+import copy
+import types
+from deepsvg.svglib.svg import SVG, Bbox
+from .utils import apply_colors
+
 from deepsvg.config import _Config
 from deepsvg.difflib.tensor import SVGTensor
 from deepsvg.svglib.svg import SVG
 from deepsvg.svglib.geom import Point
-from l5kit.dataset import AgentDataset, EgoDataset
 
 import math
 import torch
@@ -39,39 +26,28 @@ import pandas as pd
 import os
 import pickle
 
-os.environ["L5KIT_DATA_FOLDER"] = "/scratch/izar/ayromlou/lyft/"
-
-# get config
-cfg = load_config_data("./agent_motion_config-history-main.yaml")
-print(cfg)
-
-
-
-
-
 import csv
 
-class AgentSVGDataset(torch.utils.data.Dataset):
-    def __init__(self, data_type, model_args, max_num_groups, max_seq_len,
-                 max_total_len=None,PAD_VAL=-1):
+
+
+
+
+
+class AgentDataset(torch.utils.data.Dataset):
+    def __init__(self, data_cfg: dict, zarr_dataset, rasterizer,
+                 model_args, max_num_groups, max_seq_len,
+                 perturbation=None, agents_mask=None,
+                 min_frame_history=10, min_frame_future=1,
+                 max_total_len=None, filter_uni=None, filter_platform=None,
+                 filter_category=None, train_ratio=1.0, PAD_VAL=-1,csv_path=None):
 
         super().__init__()
-        # ===== INIT DATASET
-        dm = LocalDataManager(None)
-        # get config
-        train_cfg = cfg["train_data_loader"]
-        rasterizer = build_rasterizer(cfg, dm)
-        train_zarr = ChunkedDataset(dm.require(train_cfg["key"])).open()
-        train_dataset = AgentDataset(cfg, train_zarr, rasterizer)
-#         df = pd.read_csv (r'stats50/scenes_train_full_data.csv')
-#         filtered_indicies=df["idx"].tolist()
-#         print("full dataset ready",len(train_dataset))
-#         train_dataset = torch.utils.data.Subset(train_dataset, filtered_indicies)
-        print(train_dataset)
-        print(len(train_dataset))
-        self.data=train_dataset
+        print(data_cfg)
         self.svg = True
         self.svg_cmds = True
+
+        self.data = agent_dataset(
+            data_cfg, zarr_dataset, rasterizer)
 
         self.MAX_NUM_GROUPS = max_num_groups
         self.MAX_SEQ_LEN = max_seq_len
@@ -112,8 +88,8 @@ class AgentSVGDataset(torch.utils.data.Dataset):
         item = self.data[icon_id]
         if self.svg and self.svg_cmds:
             tens = SVG.from_tensor(item['path']).simplify().split_paths().to_tensor(concat_groups=False)
-            # svg = apply_colors(tens, item['path_type'])
-        return tens
+            svg = apply_colors(tens, item['path_type'])
+        return svg
 
     def __len__(self):
         return len(self.data)
@@ -135,47 +111,43 @@ class AgentSVGDataset(torch.utils.data.Dataset):
         return svg.normalize()
 
     @staticmethod
-    def preprocess(svg, augment=True, numericalize=True, mean=False):
-        if augment:
-            svg = AgentSVGDataset._augment(svg, mean=mean)
-        if numericalize:
-            return svg.numericalize(256)
-        return svg
-    @staticmethod
     def normalize_history(svg, normalize=True):
         svg.canonicalize(normalize=normalize)
         return svg.normalize()
-    
+
+    @staticmethod
+    def preprocess(svg, augment=True, numericalize=True, mean=False):
+        if augment:
+            svg = AgentDataset._augment(svg, mean=mean)
+        if numericalize:
+            return svg.numericalize(256)
+        return svg
+
     def get(self, idx=0, model_args=None, random_aug=True, id=None, svg: SVG = None):
         item = self.data[idx]
         if self.svg and self.svg_cmds:
-            tens_scene=[]
-            tens_path=[]
-            if len(item['path'])!=0:
-                tens_scene = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
-#             if len(item['history_agent'])!=0:
-#                 tens_path = self.normalize_history(SVG.from_tensor(item['history_agent'])).split_paths().to_tensor(concat_groups=False)
-#             if len(item['path_type'])!=0:
-#                 tens_scene = apply_colors(tens_scene, item['path_type'])
-#             if len(item['history_agent_type'])!=0:
-#                 tens_path = apply_colors(tens_path, item['history_agent_type'])
-            
+            tens_scene = self.simplify(SVG.from_tensor(item['path'])).split_paths().to_tensor(concat_groups=False)
+            # tens_path = self.normalize_history(SVG.from_tensor(item['history_agent'])).split_paths().to_tensor(concat_groups=False)
+            # tens_scene = apply_colors(tens_scene, item['path_type'])
+            # tens_path = apply_colors(tens_path, item['history_agent_type'])
             tens = tens_scene
             del item['path']
-#             del item['path_type']
-#             del item['history_agent']
-#             del item['history_agent_type']
-            item['image'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
+            # del item['path_type']
+            # del item['history_agent']
+            # del item['history_agent_type']
+            item['image'],item['valid'] = self.get_data(idx,tens, None, model_args=model_args, label=None)
         return item
 
     def get_data(self, idx, t_sep, fillings, model_args=None, label=None):
         res = {}
+        valid = True
         # max_len_commands = 0
         # len_path = len(t_sep)
         if model_args is None:
             model_args = self.model_args
         if len(t_sep) > self.MAX_NUM_GROUPS:
-            return None
+            t_sep = t_sep[0:self.MAX_NUM_GROUPS]
+            valid = False
         pad_len = max(self.MAX_NUM_GROUPS - len(t_sep), 0)
 
         t_sep.extend([torch.empty(0, 14)] * pad_len)
@@ -185,8 +157,10 @@ class AgentSVGDataset(torch.utils.data.Dataset):
         t_normal = []
         for t in t_sep:
             s = SVGTensor.from_data(t, PAD_VAL=self.PAD_VAL)
+            # print(s.commands.shape)
             if len(s.commands) > self.MAX_SEQ_LEN:
-                return None
+                s.commands = s.commands[0:self.MAX_SEQ_LEN]
+                valid = False
             t_normal.append(s.add_eos().add_sos().pad(
                 seq_len=self.MAX_SEQ_LEN + 2))
         # line = {"idx" : idx, "len_path" : len_path, "max_len_commands" : max_len_commands}
@@ -213,12 +187,12 @@ class AgentSVGDataset(torch.utils.data.Dataset):
             if arg_ == "args_rel":
                 res[arg] = torch.stack([t.get_relative_args() for t in t_list])
             if arg_ == "args":
-                res[arg] = torch.stack([t.args() for t in t_list])
+                res[arg] = torch.stack([t.args()[0:self.MAX_SEQ_LEN+2] for t in t_list])
 
         if "filling" in model_args:
             res["filling"] = torch.stack([torch.tensor(t.filling) for t in t_sep]).unsqueeze(-1)
 
         if "label" in model_args:
             res["label"] = label
-        return res
+        return res,valid
 
