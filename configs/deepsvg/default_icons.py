@@ -59,7 +59,7 @@ class Config(_Config):
 
     def make_schedulers(self, optimizers, epoch_size):
         optimizer, = optimizers
-        return [lr_scheduler.StepLR(optimizer, step_size=2.5 * epoch_size, gamma=0.9)]
+        return [lr_scheduler.StepLR(optimizer, step_size=4 * epoch_size, gamma=0.5)]
 
     def make_model(self):
         return SVGTransformer(self.model_cfg)

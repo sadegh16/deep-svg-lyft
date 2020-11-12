@@ -105,11 +105,11 @@ def train(model_cfg: _Config, args, model_name, experiment_name="", log_dir="./l
         # # Get PyTorch Dataset
         train_dataset = SVGDataset(data_type="argo", model_args=model_cfg.model_args,
                                    max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
-                                   data_dict=data_dict, args=args, mode="train")
+                                   data_dict=data_dict, args=args, mode="val")
 
-        val_dataset = SVGDataset(data_type="argo", model_args=model_cfg.model_args,
-                                 max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
-                                 data_dict=data_dict, args=args, mode="val")
+#        val_dataset = SVGDataset(data_type="argo", model_args=model_cfg.model_args,
+#                                 max_num_groups=model_cfg.max_num_groups, max_seq_len=model_cfg.max_seq_len,
+#                                data_dict=data_dict, args=args, mode="val")
         criterion = get_ade
         old_loss_criterion = nn.MSELoss()
         #         model = ModelTrajectory(model_cfg=model_cfg,data_config=None, modes=args.modes, future_len=30, in_channels=3).to(device)
@@ -117,10 +117,13 @@ def train(model_cfg: _Config, args, model_name, experiment_name="", log_dir="./l
         #                                modes=args.modes,history_num = 40,future_len=60).to(device)
 
         model = Cheese(modes=args.modes).to(device)
+        print(model)
+        print(sum(p.numel() for p in model.parameters() if p.requires_grad) , '#trainable params')
+#         exit(0)
     train_dataloader = DataLoader(train_dataset, batch_size=model_cfg.train_batch_size, shuffle=True,
                                   num_workers=model_cfg.loader_num_workers, collate_fn=my_collate)
-    validat_dataloader = DataLoader(val_dataset, batch_size=model_cfg.val_batch_size, shuffle=False,
-                                    num_workers=model_cfg.loader_num_workers, collate_fn=my_collate)
+#    validat_dataloader = DataLoader(val_dataset, batch_size=model_cfg.val_batch_size, shuffle=False,
+#                                    num_workers=model_cfg.loader_num_workers, collate_fn=my_collate)
 
     stats = Stats(num_steps=model_cfg.num_steps, num_epochs=model_cfg.num_epochs, steps_per_epoch=len(train_dataloader),
                   stats_to_print=model_cfg.stats_to_print)
@@ -184,17 +187,17 @@ def train(model_cfg: _Config, args, model_name, experiment_name="", log_dir="./l
                 return
 
             model.train()
-            model_args = [data['image'][arg].to(device) for arg in model_cfg.model_args]
+#             model_args = [data['image'][arg].to(device) for arg in model_cfg.model_args]
             params_dict, weights_dict = model_cfg.get_params(step, epoch), model_cfg.get_weights(step, epoch)
 
             for i, (loss_fn, optimizer, scheduler_lr, scheduler_warmup, optimizer_start) in enumerate(
                     zip(loss_fns, optimizers, scheduler_lrs, scheduler_warmups, model_cfg.optimizer_starts), 1):
                 optimizer.zero_grad()
-                history_positions = data["history_positions"].to(device)
-                scene = data["padded_cntr_lines"].to(device)
-                scene_lens = data["available_cntr_size"].to(device)
-                agents = data["normal_agents_history"].to(device)
-                agents_lens = data["agents_num"].to(device)
+                history_positions = data["history_positions"].to(device).type(torch.float32)
+                scene = data["padded_cntr_lines"].to(device).type(torch.float32)
+                scene_lens = data["available_cntr_size"].to(device).type(torch.float32)
+                agents = data["normal_agents_history"].to(device).type(torch.float32)
+                agents_lens = data["agents_num"].to(device).type(torch.float32)
                 # history = data["history_positions"].to(device)
                 #                 entery = [*model_args, params_dict, True]
                 # entery = [[*model_args, {}, True], history]
@@ -237,9 +240,9 @@ def train(model_cfg: _Config, args, model_name, experiment_name="", log_dir="./l
                 timer.reset()
                 torch.save(model.state_dict(),
                            log_dir + "/" + experiment_identifier + "/" + "checkpoint" + "-" + str(step))
-                validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,
-                           step,
-                           old_loss_criterion)
+#                 validation(validat_dataloader, model, model_cfg, device, criterion, epoch, stats, summary_writer, timer,
+#                            step,
+#                            old_loss_criterion)
 
 
 #             if step % model_cfg.ckpt_every == 0:
@@ -267,15 +270,20 @@ def validation(val_dataloader, model, model_cfg, device, criterion, epoch, stats
             stats.write_tensorboard(summary_writer, "val")
             summary_writer.flush()
             return
-        history = data["history_positions"].to(device)
-        #         entery = [*model_args, params_dict, True]
-        entery = [[*model_args, {}, True], history]
-        output, conf = model(entery)
+        history_positions = data["history_positions"].to(device).type(torch.float32)
+        scene = data["padded_cntr_lines"].to(device).type(torch.float32)
+        scene_lens = data["available_cntr_size"].to(device).type(torch.float32)
+        agents = data["normal_agents_history"].to(device).type(torch.float32)
+        agents_lens = data["agents_num"].to(device).type(torch.float32)
+        # history = data["history_positions"].to(device)
+        #                 entery = [*model_args, params_dict, True]
+        # entery = [[*model_args, {}, True], history]
+        output, conf = model([history_positions, scene, scene_lens, agents, agents_lens])
         loss_dict = {}
         loss_dict['loss'] = criterion(data['target_positions'].to(device),
                                       output.reshape(data['target_positions'].shape), ).mean()
         loss_dict['old_loss'] = old_loss_criterion(data['target_positions'].to(device),
-                                                   output.reshape(data['target_positions'].shape), ).mean()
+                 output.reshape(data['target_positions'].shape), ).mean()
 
         stats.update_stats_to_print("val", loss_dict)
 
@@ -367,5 +375,5 @@ if __name__ == "__main__":
     if args.train_idxs is not None:
         cfg.train_idxs = args.train_idxs
     train(model_cfg=cfg, args=args,
-          model_name="test", experiment_name=experiment_name,
-          log_dir=args.log_dir, debug=args.debug, resume=args.resume)
+          model_name="cheese-test-1", experiment_name=experiment_name,
+          log_dir="/work/vita/ayromlou/argo_code/logs", debug=args.debug, resume=args.resume)

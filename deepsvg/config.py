@@ -40,7 +40,7 @@ class _Config:
 
         self.filter_labels = None                             #
 
-        self.grad_clip = None                                 #
+        self.grad_clip = 1.                                 #
 
         self.log_every = 20                                   #
         self.val_every = 1000                                 #
