@@ -27,12 +27,12 @@ from argoverse.map_representation.map_api import ArgoverseMap
 
 import math
 
-MAX_CNTR_LINES=10
+MAX_CNTR_LINES=15
 SEQ_LEN=170
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_dict: Dict[str, Any], args: Any, mode: str,base_dir="/work/vita/sadegh/argo/argoverse-api/",
-                use_history=True, use_agents=True,use_scene=True):
+                use_history=False, use_agents=False,use_scene=True):
         """Initialize the Dataset.
 
         Args:
@@ -157,6 +157,7 @@ class BaseDataset(torch.utils.data.Dataset):
         
         
 #         print(path[0].shape)
+        _ , normal_agents_hist , agents_num = self.get_agents(idx,world_to_image_space,helper[0][19],helper[5])
         available_cntr_size,padded_cntr_lines=self.pad_cntr_lines(cnt_lines_norm)
         
         
